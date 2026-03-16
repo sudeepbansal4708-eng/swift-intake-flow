@@ -851,7 +851,7 @@ async def delete_admin(admin_id: str, current_user: dict = Depends(get_current_u
 
 @api_router.get("/admin/tips")
 async def get_tips(current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'admin':
+    if current_user['role'] not in ['admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     tips = await db.tips.find({}, {"_id": 0}).to_list(1000)
