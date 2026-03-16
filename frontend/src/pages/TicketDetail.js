@@ -129,6 +129,15 @@ export default function TicketDetail() {
                   <span>{ticket.vehicle.zone_label}</span>
                 </div>
               )}
+              {ticket.vehicle?.tag_number && (
+                <div className="flex items-center gap-2 p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg">
+                  <span className="text-2xl">🏷️</span>
+                  <div>
+                    <div className="text-amber-400 font-bold text-lg">{ticket.vehicle.tag_number}</div>
+                    <div className="text-xs text-amber-400/70">Key Tag Number</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {ticket.vehicle?.photo_url && (

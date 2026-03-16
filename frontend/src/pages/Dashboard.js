@@ -148,6 +148,12 @@ export default function Dashboard() {
                       <Phone className="w-3 h-3" />
                       <span>{ticket.customer_phone}</span>
                     </div>
+                    {ticket.vehicle?.tag_number && (
+                      <div className="flex items-center gap-2 mt-2 p-2 bg-amber-950/20 border border-amber-900/50 rounded">
+                        <span>🏷️</span>
+                        <span className="text-amber-400 font-medium">{ticket.vehicle.tag_number}</span>
+                      </div>
+                    )}
                   </div>
                 </Card>
               ))}

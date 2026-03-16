@@ -95,6 +95,7 @@ class Vehicle(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     phone_number: str
     license_plate: str
+    tag_number: Optional[str] = None
     photo_url: Optional[str] = None
     gps_latitude: Optional[float] = None
     gps_longitude: Optional[float] = None
@@ -105,6 +106,7 @@ class Vehicle(BaseModel):
 class VehicleCreate(BaseModel):
     phone_number: str
     license_plate: str
+    tag_number: Optional[str] = None
     gps_latitude: Optional[float] = None
     gps_longitude: Optional[float] = None
     zone_label: Optional[str] = None
@@ -263,7 +265,8 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     
     # Send WhatsApp notification
     location_info = f"Zone: {vehicle_obj.zone_label}" if vehicle_obj.zone_label else "Location saved"
-    message = f"🚗 Welcome to SwiftValet!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}\n\nReply 'RETR' when you're ready to retrieve your car."
+    tag_info = f"\n🏷️ Tag Number: {vehicle_obj.tag_number}" if vehicle_obj.tag_number else ""
+    message = f"🚗 Welcome to SwiftValet!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}{tag_info}\n\nReply 'RETR' when you're ready to retrieve your car."
     await send_whatsapp_message(vehicle_obj.phone_number, message)
     
     return {"vehicle": vehicle_obj.model_dump(), "message": "Vehicle parked successfully"}
@@ -335,6 +338,7 @@ async def get_tickets(status: Optional[str] = None, current_user: dict = Depends
                 ticket['vehicle'] = {
                     "license_plate": vehicle['license_plate'],
                     "phone_number": vehicle['phone_number'],
+                    "tag_number": vehicle.get('tag_number'),
                     "zone_label": vehicle.get('zone_label'),
                     "photo_url": vehicle.get('photo_url')
                 }

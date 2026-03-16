@@ -14,6 +14,7 @@ export default function IntakeForm() {
   const [formData, setFormData] = useState({
     phone_number: '',
     license_plate: '',
+    tag_number: '',
     zone_label: '',
     gps_latitude: null,
     gps_longitude: null
@@ -220,6 +221,23 @@ export default function IntakeForm() {
                   className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Level 3, Section B"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="tag" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
+                  🏷️ Key Tag Number
+                </Label>
+                <Input
+                  data-testid="tag-input"
+                  id="tag"
+                  type="text"
+                  value={formData.tag_number}
+                  onChange={(e) => setFormData({ ...formData, tag_number: e.target.value.toUpperCase() })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="TAG-001"
+                  required
+                />
+                <p className="text-xs text-zinc-500 mt-1">Attach this tag to the car keys</p>
               </div>
 
               <div>
