@@ -75,7 +75,9 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
     name: str
-    role: str = "valet"
+    role: str = "valet"  # valet, admin, super_admin
+    client_id: Optional[str] = None  # Which client this user belongs to
+    client_name: Optional[str] = None  # Client/business name
     password_hash: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
@@ -85,6 +87,8 @@ class UserCreate(BaseModel):
     name: str
     password: str
     role: str = "valet"
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -473,16 +477,131 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
 
 @api_router.get("/admin/valets")
 async def get_valets(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Admin sees only their client's valets
+    # Super admin sees all
+    query = {}
+    if current_user['role'] == 'admin':
+        query['client_id'] = current_user.get('client_id')
+    
+    valets = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return valets
+
+@api_router.post("/admin/valets")
+async def create_valet(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+    """Admin can create valets for their client"""
     if current_user['role'] != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    valets = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
-    return valets
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Valet inherits admin's client_id
+    user_dict = user_data.model_dump()
+    user_dict['client_id'] = current_user.get('client_id')
+    user_dict['client_name'] = current_user.get('client_name')
+    user_dict['role'] = 'valet'  # Force valet role
+    user_dict['password_hash'] = get_password_hash(user_dict.pop('password'))
+    user_obj = User(**user_dict)
+    
+    doc = user_obj.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.users.insert_one(doc)
+    
+    return {"message": "Valet created", "user": {"id": user_obj.id, "email": user_obj.email, "name": user_obj.name}}
 
 @api_router.delete("/admin/valets/{valet_id}")
 async def delete_valet(valet_id: str, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'admin':
+    if current_user['role'] not in ['admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Admin can only delete their client's valets
+    query = {"id": valet_id}
+    if current_user['role'] == 'admin':
+        query['client_id'] = current_user.get('client_id')
+    
+    result = await db.users.update_one(query, {"$set": {"is_active": False}})
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Valet not found")
+    
+    return {"message": "Valet deactivated"}
+
+@api_router.get("/super-admin/clients")
+async def get_clients(current_user: dict = Depends(get_current_user)):
+    """Get all clients (admins)"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    
+    # Get stats for each client
+    for admin in admins:
+        client_id = admin.get('client_id')
+        if client_id:
+            valets_count = await db.users.count_documents({"client_id": client_id, "role": "valet", "is_active": True})
+            vehicles_count = await db.vehicles.count_documents({"parked_by": {"$in": [admin['id']]} if admin.get('id') else {}})
+            admin['stats'] = {
+                "valets": valets_count,
+                "vehicles": vehicles_count
+            }
+    
+    return admins
+
+@api_router.post("/super-admin/admins")
+async def create_admin(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+    """Super admin can create client admins"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Generate client_id if not provided
+    user_dict = user_data.model_dump()
+    if not user_dict.get('client_id'):
+        user_dict['client_id'] = str(uuid.uuid4())
+    
+    user_dict['role'] = 'admin'  # Force admin role
+    user_dict['password_hash'] = get_password_hash(user_dict.pop('password'))
+    user_obj = User(**user_dict)
+    
+    doc = user_obj.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.users.insert_one(doc)
+    
+    return {
+        "message": "Admin created",
+        "user": {
+            "id": user_obj.id,
+            "email": user_obj.email,
+            "name": user_obj.name,
+            "client_id": user_obj.client_id,
+            "client_name": user_obj.client_name
+        }
+    }
+
+@api_router.delete("/super-admin/admins/{admin_id}")
+async def delete_admin(admin_id: str, current_user: dict = Depends(get_current_user)):
+    """Super admin can deactivate client admins"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    result = await db.users.update_one(
+        {"id": admin_id, "role": "admin"},
+        {"$set": {"is_active": False}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    return {"message": "Admin deactivated"}
     
     result = await db.users.update_one(
         {"id": valet_id},

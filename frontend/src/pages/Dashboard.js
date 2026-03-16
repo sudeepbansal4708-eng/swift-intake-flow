@@ -4,7 +4,7 @@ import axios from 'axios';
 import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { Plus, Car, LogOut, Settings, Clock, MapPin, Phone, Award } from 'lucide-react';
+import { Plus, Car, LogOut, Settings, Clock, MapPin, Phone, Award, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Dashboard() {
@@ -84,6 +84,17 @@ export default function Dashboard() {
             <p className="text-sm text-zinc-400">Welcome, {user?.name}</p>
           </div>
           <div className="flex gap-2">
+            {user?.role === 'super_admin' && (
+              <Button
+                data-testid="super-admin-panel-button"
+                onClick={() => navigate('/super-admin')}
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-amber-400 hover:text-amber-300 hover:bg-amber-950/20"
+              >
+                <Crown className="w-5 h-5" />
+              </Button>
+            )}
             {user?.role === 'admin' && (
               <Button
                 data-testid="admin-panel-button"

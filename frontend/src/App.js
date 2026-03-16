@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
 import TicketDetail from "./pages/TicketDetail";
 import AdminPanel from "./pages/AdminPanel";
+import SuperAdminPanel from "./pages/SuperAdminPanel";
 import { Toaster } from "./components/ui/sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -47,6 +48,7 @@ function App() {
           <Route path="/intake" element={<PrivateRoute><IntakeForm /></PrivateRoute>} />
           <Route path="/ticket/:ticketId" element={<PrivateRoute><TicketDetail /></PrivateRoute>} />
           <Route path="/admin" element={<PrivateRoute><AdminPanel /></PrivateRoute>} />
+          <Route path="/super-admin" element={<PrivateRoute><SuperAdminPanel /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster richColors position="top-center" />
