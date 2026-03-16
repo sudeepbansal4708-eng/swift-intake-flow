@@ -102,6 +102,12 @@ class ValetCreate(BaseModel):
     phone_number: str
     driver_license_number: Optional[str] = None
 
+class AdminCreate(BaseModel):
+    email: EmailStr
+    name: str
+    phone_number: str
+    client_name: Optional[str] = None
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
@@ -290,14 +296,14 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/auth/otp/request")
 async def request_otp(data: OTPRequest):
-    """Send OTP to valet's WhatsApp number"""
+    """Send OTP to valet or admin's WhatsApp number"""
     phone = data.phone_number.strip()
     if not phone.startswith('+'):
         phone = '+' + phone
 
-    user = await db.users.find_one({"phone_number": phone, "role": "valet"}, {"_id": 0})
+    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}}, {"_id": 0})
     if not user:
-        raise HTTPException(status_code=404, detail="No valet account found with this phone number")
+        raise HTTPException(status_code=404, detail="No account found with this phone number")
 
     if not user.get('is_active', True):
         raise HTTPException(status_code=401, detail="Account is inactive")
@@ -340,9 +346,9 @@ async def verify_otp(data: OTPVerify):
 
     await db.otps.delete_many({"phone_number": phone})
 
-    user = await db.users.find_one({"phone_number": phone, "role": "valet"}, {"_id": 0})
+    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}}, {"_id": 0})
     if not user:
-        raise HTTPException(status_code=404, detail="Valet account not found")
+        raise HTTPException(status_code=404, detail="Account not found")
 
     token = create_access_token({"sub": user['email'], "role": user['role']})
     return {
@@ -773,23 +779,32 @@ async def get_super_admin_analytics(current_user: dict = Depends(get_current_use
     }
 
 @api_router.post("/super-admin/admins")
-async def create_admin(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
-    """Super admin can create client admins"""
+async def create_admin(admin_data: AdminCreate, current_user: dict = Depends(get_current_user)):
+    """Super admin can create client admins (no password — admins use OTP login)"""
     if current_user['role'] != 'super_admin':
         raise HTTPException(status_code=403, detail="Super admin access required")
     
-    existing = await db.users.find_one({"email": user_data.email})
+    # Normalize phone number
+    phone = admin_data.phone_number.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    existing = await db.users.find_one({"email": admin_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Generate client_id if not provided
-    user_dict = user_data.model_dump()
-    if not user_dict.get('client_id'):
-        user_dict['client_id'] = str(uuid.uuid4())
+    existing_phone = await db.users.find_one({"phone_number": phone, "role": "admin"})
+    if existing_phone:
+        raise HTTPException(status_code=400, detail="Phone number already registered to another admin")
     
-    user_dict['role'] = 'admin'  # Force admin role
-    user_dict['password_hash'] = get_password_hash(user_dict.pop('password'))
-    user_obj = User(**user_dict)
+    user_obj = User(
+        email=admin_data.email,
+        name=admin_data.name,
+        phone_number=phone,
+        role="admin",
+        client_id=str(uuid.uuid4()),
+        client_name=admin_data.client_name,
+    )
     
     doc = user_obj.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -802,6 +817,7 @@ async def create_admin(user_data: UserCreate, current_user: dict = Depends(get_c
             "id": user_obj.id,
             "email": user_obj.email,
             "name": user_obj.name,
+            "phone_number": phone,
             "client_id": user_obj.client_id,
             "client_name": user_obj.client_name
         }

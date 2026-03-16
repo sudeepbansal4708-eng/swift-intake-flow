@@ -10,14 +10,14 @@ import { Car, Phone, KeyRound, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login({ setIsAuthenticated }) {
-  const [mode, setMode] = useState('choose'); // choose, admin, otp-phone, otp-verify
+  const [mode, setMode] = useState('choose'); // choose, superadmin, otp-phone, otp-verify
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleAdminLogin = async (e) => {
+  const handleSuperAdminLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -93,37 +93,37 @@ export default function Login({ setIsAuthenticated }) {
         {mode === 'choose' && (
           <div className="space-y-3">
             <Button
-              data-testid="valet-login-btn"
+              data-testid="otp-login-btn"
               onClick={() => setMode('otp-phone')}
               className="w-full h-14 rounded-lg font-medium text-base bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
             >
               <Phone className="w-5 h-5 mr-3" />
-              Valet Login
+              Login with OTP
             </Button>
             <Button
-              data-testid="admin-login-btn"
-              onClick={() => setMode('admin')}
+              data-testid="superadmin-login-btn"
+              onClick={() => setMode('superadmin')}
               variant="outline"
               className="w-full h-14 rounded-lg font-medium text-base border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
             >
               <KeyRound className="w-5 h-5 mr-3" />
-              Admin / Manager Login
+              Super Admin Login
             </Button>
           </div>
         )}
 
-        {/* Admin/Super Admin password login */}
-        {mode === 'admin' && (
+        {/* Super Admin password login */}
+        {mode === 'superadmin' && (
           <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6">
             <div className="flex items-center gap-2 mb-4">
               <Button onClick={goBack} variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
               <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-                Admin Login
+                Super Admin Login
               </h2>
             </div>
-            <form onSubmit={handleAdminLogin} className="space-y-4">
+            <form onSubmit={handleSuperAdminLogin} className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Email</Label>
                 <Input
@@ -132,7 +132,7 @@ export default function Login({ setIsAuthenticated }) {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500 focus:border-blue-500"
-                  placeholder="admin@example.com"
+                  placeholder="superadmin@example.com"
                   required
                 />
               </div>
@@ -149,7 +149,7 @@ export default function Login({ setIsAuthenticated }) {
                 />
               </div>
               <Button
-                data-testid="admin-submit-btn"
+                data-testid="superadmin-submit-btn"
                 type="submit"
                 disabled={loading}
                 className="w-full h-12 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-500/50"
@@ -160,7 +160,7 @@ export default function Login({ setIsAuthenticated }) {
           </Card>
         )}
 
-        {/* Valet OTP - Phone entry */}
+        {/* OTP - Phone entry (for both Valets and Admins) */}
         {mode === 'otp-phone' && (
           <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -168,7 +168,7 @@ export default function Login({ setIsAuthenticated }) {
                 <ArrowLeft className="w-4 h-4" />
               </Button>
               <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-                Valet Login
+                Login with OTP
               </h2>
             </div>
             <p className="text-sm text-zinc-400 mb-4">Enter your phone number. We'll send a login code to your WhatsApp.</p>
@@ -197,7 +197,7 @@ export default function Login({ setIsAuthenticated }) {
           </Card>
         )}
 
-        {/* Valet OTP - Code verification */}
+        {/* OTP - Code verification */}
         {mode === 'otp-verify' && (
           <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6">
             <div className="flex items-center gap-2 mb-4">

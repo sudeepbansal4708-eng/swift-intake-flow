@@ -16,7 +16,7 @@ export default function SuperAdminPanel() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
+    phone_number: '',
     name: '',
     client_name: ''
   });
@@ -50,7 +50,7 @@ export default function SuperAdminPanel() {
       await axios.post(`${API}/super-admin/admins`, formData);
       toast.success('Admin created successfully!');
       setShowAddForm(false);
-      setFormData({ email: '', password: '', name: '', client_name: '' });
+      setFormData({ email: '', phone_number: '', name: '', client_name: '' });
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create admin');
@@ -209,16 +209,16 @@ export default function SuperAdminPanel() {
                 </div>
 
                 <div>
-                  <Label htmlFor="password" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                    Password
+                  <Label htmlFor="phone_number" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
+                    Phone Number (for OTP Login)
                   </Label>
                   <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    id="phone_number"
+                    type="tel"
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                     className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500"
-                    placeholder="••••••••"
+                    placeholder="+91 9876543210"
                     required
                   />
                 </div>
@@ -253,6 +253,9 @@ export default function SuperAdminPanel() {
                     </div>
                     <div className="text-sm text-zinc-400">{admin.name}</div>
                     <div className="text-xs text-zinc-500">{admin.email}</div>
+                    {admin.phone_number && (
+                      <div className="text-xs text-zinc-500">{admin.phone_number}</div>
+                    )}
                     
                     {admin.stats && (
                       <div className="flex gap-4 mt-2">
