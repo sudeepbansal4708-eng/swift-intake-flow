@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Users, DollarSign, Car, Trash2 } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminPanel() {
@@ -12,6 +14,12 @@ export default function AdminPanel() {
   const [vehicles, setVehicles] = useState([]);
   const [tips, setTips] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showLicenseModal, setShowLicenseModal] = useState(false);
+  const [selectedValet, setSelectedValet] = useState(null);
+  const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
+  const [formData, setFormData] = useState({ email: '', password: '', name: '', driver_license_number: '' });
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,6 +47,40 @@ export default function AdminPanel() {
     }
   };
 
+  const handleCreateValet = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${API}/admin/valets`, formData);
+      const valetId = response.data.user.id;
+      
+      // If license photo provided, upload it
+      if (licenseData.photo && formData.driver_license_number) {
+        const licenseForm = new FormData();
+        licenseForm.append('license_number', formData.driver_license_number);
+        licenseForm.append('license_photo', licenseData.photo);
+        
+        await axios.post(`${API}/admin/valets/${valetId}/license`, licenseForm, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
+      toast.success('Valet created successfully!');
+      setShowAddForm(false);
+      setFormData({ email: '', password: '', name: '', driver_license_number: '' });
+      setLicenseData({ number: '', photo: null, preview: null });
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create valet');
+    }
+  };
+
+  const handleLicensePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setLicenseData({ ...licenseData, photo: file, preview: URL.createObjectURL(file) });
+    }
+  };
+
   const deleteValet = async (valetId) => {
     if (!window.confirm('Are you sure you want to deactivate this valet?')) return;
     
@@ -49,6 +91,11 @@ export default function AdminPanel() {
     } catch (error) {
       toast.error('Failed to deactivate valet');
     }
+  };
+
+  const viewLicense = (valet) => {
+    setSelectedValet(valet);
+    setShowLicenseModal(true);
   };
 
   if (loading) {
@@ -99,73 +146,189 @@ export default function AdminPanel() {
           </Card>
         </div>
 
-        <div>
-          <h2 className="text-lg font-semibold uppercase tracking-tight mb-3" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-            Valet Drivers
-          </h2>
-          <div className="space-y-2">
-            {valets.map((valet) => (
-              <Card
-                key={valet.id}
-                data-testid={`valet-${valet.id}`}
-                className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 flex justify-between items-center"
-              >
-                <div>
+        <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+              Team Management
+            </h2>
+            <Button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="h-10 px-4 rounded-lg font-medium bg-blue-600 hover:bg-blue-500"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Valet
+            </Button>
+          </div>
+        </Card>
+
+        {showAddForm && (
+          <Card className="bg-zinc-950/50 border border-blue-800 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-blue-400 uppercase" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                Add New Valet Driver
+              </h3>
+              <Button onClick={() => setShowAddForm(false)} variant="ghost" size="icon" className="h-8 w-8">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <form onSubmit={handleCreateValet} className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Full Name</Label>
+                <Input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Email</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                  placeholder="john@example.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Password</Label>
+                <Input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Driver License Number</Label>
+                <Input
+                  type="text"
+                  value={formData.driver_license_number}
+                  onChange={(e) => setFormData({ ...formData, driver_license_number: e.target.value })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                  placeholder="DL-1420110012345"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Driver License Photo</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLicensePhotoChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  onClick={() => fileInputRef.current.click()}
+                  className="w-full h-12 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  {licenseData.photo ? '✅ Photo Captured' : 'Upload License Photo'}
+                </Button>
+                {licenseData.preview && (
+                  <div className="mt-3 rounded-lg overflow-hidden border border-zinc-800">
+                    <img src={licenseData.preview} alt="License" className="w-full h-32 object-cover" />
+                  </div>
+                )}
+              </div>
+
+              <Button type="submit" className="w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-500">
+                Create Valet
+              </Button>
+            </form>
+          </Card>
+        )}
+
+        <div className="space-y-2">
+          {valets.map((valet) => (
+            <Card key={valet.id} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
                   <div className="font-medium text-white">{valet.name}</div>
                   <div className="text-sm text-zinc-400">{valet.email}</div>
-                  <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border mt-1">
-                    <span className={valet.role === 'admin' ? 'text-amber-400' : 'text-blue-400'}>
-                      {valet.role.toUpperCase()}
-                    </span>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border">
+                      <span className={valet.role === 'admin' ? 'text-amber-400' : 'text-blue-400'}>
+                        {valet.role.toUpperCase()}
+                      </span>
+                    </div>
+                    {valet.driver_license_number && (
+                      <Button
+                        onClick={() => viewLicense(valet)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                      >
+                        <IdCard className="w-3 h-3 mr-1" />
+                        License: {valet.driver_license_number}
+                      </Button>
+                    )}
                   </div>
                   {valet.is_active === false && (
-                    <span className="ml-2 text-xs text-red-400">(Inactive)</span>
+                    <span className="inline-block mt-1 text-xs text-red-400">(Inactive)</span>
                   )}
                 </div>
                 {valet.is_active !== false && valet.role !== 'admin' && (
                   <Button
-                    data-testid={`delete-valet-${valet.id}`}
                     onClick={() => deleteValet(valet.id)}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                    className="h-8 w-8 text-red-400 hover:text-red-300"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 )}
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-lg font-semibold uppercase tracking-tight mb-3" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-            Recent Vehicles
-          </h2>
-          <div className="space-y-2">
-            {vehicles.slice(0, 10).map((vehicle) => (
-              <Card
-                key={vehicle.id}
-                data-testid={`vehicle-${vehicle.id}`}
-                className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-medium text-white">{vehicle.license_plate}</div>
-                    <div className="text-sm text-zinc-400">{vehicle.phone_number}</div>
-                    {vehicle.zone_label && (
-                      <div className="text-xs text-zinc-500 mt-1">{vehicle.zone_label}</div>
-                    )}
-                  </div>
-                  <div className="text-xs text-zinc-500">
-                    {new Date(vehicle.parked_at).toLocaleDateString()}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
+
+      {showLicenseModal && selectedValet && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <Card className="bg-zinc-900 border border-zinc-800 p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-white text-lg uppercase" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                Driver License
+              </h3>
+              <Button onClick={() => setShowLicenseModal(false)} variant="ghost" size="icon">
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-zinc-400 mb-1">Driver Name</div>
+                <div className="text-white font-medium">{selectedValet.name}</div>
+              </div>
+              <div>
+                <div className="text-sm text-zinc-400 mb-1">License Number</div>
+                <div className="text-white font-mono">{selectedValet.driver_license_number}</div>
+              </div>
+              {selectedValet.driver_license_photo && (
+                <div>
+                  <div className="text-sm text-zinc-400 mb-2">License Photo</div>
+                  <div className="rounded-lg overflow-hidden border border-zinc-700">
+                    <img src={selectedValet.driver_license_photo} alt="Driver License" className="w-full" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

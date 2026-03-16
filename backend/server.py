@@ -77,7 +77,9 @@ class User(BaseModel):
     name: str
     role: str = "valet"  # valet, admin, super_admin
     client_id: Optional[str] = None  # Which client this user belongs to
-    client_name: Optional[str] = None  # Client/business name
+    client_name: Optional[str] = None  # Client/business name (e.g., "The Grand Hotel")
+    driver_license_number: Optional[str] = None  # For valets
+    driver_license_photo: Optional[str] = None  # Base64 image for valets
     password_hash: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
@@ -89,6 +91,7 @@ class UserCreate(BaseModel):
     role: str = "valet"
     client_id: Optional[str] = None
     client_name: Optional[str] = None
+    driver_license_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -276,11 +279,17 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     
     await db.vehicles.insert_one(doc)
     
-    # Send WhatsApp notification
+    # Send WhatsApp notification with client branding
     print(f"🔔 PREPARING TO SEND WHATSAPP to {vehicle_obj.phone_number}")
+    
+    # Get client name from the valet who parked it
+    valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
+    client_name = valet.get('client_name', 'SwiftValet') if valet else 'SwiftValet'
+    
     location_info = f"Zone: {vehicle_obj.zone_label}" if vehicle_obj.zone_label else "Location saved"
     tag_info = f"\n🏷️ Tag Number: {vehicle_obj.tag_number}" if vehicle_obj.tag_number else ""
-    message = f"🚗 Welcome to SwiftValet!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}{tag_info}\n\nReply 'RETR' when you're ready to retrieve your car."
+    
+    message = f"🚗 Welcome to {client_name}!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}{tag_info}\n\nReply 'RETR' when you're ready to retrieve your car."
     
     whatsapp_result = await send_whatsapp_message(vehicle_obj.phone_number, message)
     print(f"🔔 WHATSAPP RESULT: {whatsapp_result}")
@@ -530,6 +539,36 @@ async def delete_valet(valet_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Valet not found")
     
     return {"message": "Valet deactivated"}
+
+@api_router.post("/admin/valets/{valet_id}/license")
+async def upload_driver_license(
+    valet_id: str,
+    license_number: str = Form(...),
+    license_photo: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload driver license for valet verification"""
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Read and encode photo
+    photo_data = await license_photo.read()
+    photo_base64 = base64.b64encode(photo_data).decode('utf-8')
+    photo_url = f"data:{license_photo.content_type};base64,{photo_base64}"
+    
+    # Update valet with license info
+    result = await db.users.update_one(
+        {"id": valet_id, "client_id": current_user.get('client_id')},
+        {"$set": {
+            "driver_license_number": license_number,
+            "driver_license_photo": photo_url
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Valet not found")
+    
+    return {"message": "Driver license uploaded", "license_number": license_number}
 
 @api_router.get("/super-admin/clients")
 async def get_clients(current_user: dict = Depends(get_current_user)):
