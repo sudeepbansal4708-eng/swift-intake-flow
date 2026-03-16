@@ -470,14 +470,30 @@ async def get_tips(current_user: dict = Depends(get_current_user)):
     return tips
 
 @api_router.post("/whatsapp/webhook")
-async def whatsapp_webhook(phone_number: str, message: str):
-    message_lower = message.strip().lower()
+async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
+    """Handle incoming WhatsApp messages from Twilio
+    Twilio sends form data with 'From' and 'Body' fields
+    """
+    # Twilio sends phone number with 'whatsapp:' prefix, remove it
+    phone_number = From.replace('whatsapp:', '').strip()
+    
+    # Add + if not present
+    if not phone_number.startswith('+'):
+        phone_number = '+' + phone_number
+    
+    message = Body.strip()
+    message_lower = message.lower()
+    
+    print(f"📱 Received WhatsApp message from {phone_number}: {message}")
     
     if message_lower in ['retr', 'retrieve', 'get car', 'ready']:
         # Find vehicle by phone
         vehicle = await db.vehicles.find_one({"phone_number": phone_number}, {"_id": 0})
         if not vehicle:
+            print(f"❌ No vehicle found for {phone_number}")
             return {"reply": "Sorry, we couldn't find your vehicle. Please contact support."}
+        
+        print(f"✅ Found vehicle: {vehicle['license_plate']}")
         
         # Check if ticket already exists
         existing_ticket = await db.tickets.find_one({
@@ -498,6 +514,8 @@ async def whatsapp_webhook(phone_number: str, message: str):
         doc = ticket_obj.model_dump()
         doc['created_at'] = doc['created_at'].isoformat()
         await db.tickets.insert_one(doc)
+        
+        print(f"🎉 Created retrieval ticket for vehicle {vehicle['license_plate']}")
         
         return {"reply": "🚗 Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
     
