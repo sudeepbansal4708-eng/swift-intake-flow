@@ -16,6 +16,7 @@ import razorpay
 import base64
 import httpx
 from bson import ObjectId
+from twilio.rest import Client as TwilioClient
 
 
 ROOT_DIR = Path(__file__).parent
@@ -41,9 +42,15 @@ if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
 else:
     razorpay_client = None
 
-# WhatsApp config
-WHATSAPP_API_URL = os.environ.get('WHATSAPP_API_URL', '')
-WHATSAPP_TOKEN = os.environ.get('WHATSAPP_TOKEN', '')
+# Twilio WhatsApp config
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')
+
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+else:
+    twilio_client = None
 
 # Create the main app
 app = FastAPI()
@@ -157,24 +164,31 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def send_whatsapp_message(phone_number: str, message: str):
-    if not WHATSAPP_API_URL or not WHATSAPP_TOKEN:
-        logging.warning(f"WhatsApp not configured. Would send to {phone_number}: {message}")
-        return {"status": "not_configured", "message": "WhatsApp credentials not set"}
+    """Send WhatsApp message via Twilio API"""
+    if not twilio_client or not TWILIO_WHATSAPP_FROM:
+        logging.warning(f"Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
+        return {"status": "not_configured", "message": "Twilio WhatsApp credentials not set"}
     
     try:
-        async with httpx.AsyncClient() as http_client:
-            response = await http_client.post(
-                WHATSAPP_API_URL,
-                json={
-                    "phone_number": phone_number,
-                    "message": message
-                },
-                headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
-                timeout=10.0
-            )
-            return response.json()
+        # Format phone number for WhatsApp (must have whatsapp: prefix for Twilio)
+        to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
+        from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
+        
+        # Send message via Twilio
+        twilio_message = twilio_client.messages.create(
+            body=message,
+            from_=from_whatsapp,
+            to=to_whatsapp
+        )
+        
+        logging.info(f"WhatsApp message sent via Twilio. SID: {twilio_message.sid}, Status: {twilio_message.status}")
+        return {
+            "status": "sent",
+            "message_sid": twilio_message.sid,
+            "twilio_status": twilio_message.status
+        }
     except Exception as e:
-        logging.error(f"WhatsApp send error: {str(e)}")
+        logging.error(f"Twilio WhatsApp send error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 # Routes
