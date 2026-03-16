@@ -6,8 +6,13 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 ## User Roles
 - **Customer**: Interacts via WhatsApp (no app needed)
 - **Valet Driver**: Uses React PWA, logs in via OTP sent to WhatsApp
-- **Admin**: Manages valets, tips, car statuses for their client (password login)
-- **Super Admin**: Manages Admins, platform-wide analytics (password login)
+- **Admin**: Manages valets, tips, car statuses — logs in via OTP sent to WhatsApp
+- **Super Admin**: Manages Admins, platform-wide analytics (password login only)
+
+## Authentication Model
+- **OTP Login** (Valets + Admins): Phone number → 6-digit OTP via WhatsApp → 10-min expiry
+- **Password Login** (Super Admin only): Email + password
+- No passwords are set for valets or admins — they are created with phone numbers
 
 ## Core Requirements
 ### Phase A: Intake & Parking - DONE
@@ -28,13 +33,13 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 - Preset tipping ($5, $10, $20) with payment link
 
 ## Completed Features
-- JWT auth for Admin/Super Admin (password-based)
-- **Valet OTP Login via WhatsApp** — no password needed, 6-digit OTP, 10-min expiry (completed 2026-03-16)
+- JWT auth: Super Admin (password), Admin + Valet (OTP via WhatsApp)
+- OTP Login for Valets and Admins (completed 2026-03-16)
 - Multi-step vehicle intake with optional GPS
 - Twilio WhatsApp notifications (sandbox mode)
 - Retrieval ticket system (webhook code ready)
 - Admin Panel: valet CRUD (with phone number), license verification, profile editor
-- Super Admin Panel: client management, analytics dashboard
+- Super Admin Panel: client management (with phone number), analytics dashboard
 - Simplified retrieval workflow
 - Return to Park with location update
 - Admin Profile Editor (name + client name)
@@ -46,13 +51,13 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 
 ## Key Credentials
 - Super Admin: superadmin@swiftvalet.com / superadmin123
-- Admin: admin@swift.com / admin123
+- Test Admin Phone: +919111222333 (OTP login)
 - Test Valet Phone: +919999888877 (OTP login)
 
 ## DB Schema
-- **users**: `{id, email, name, phone_number, role, client_id, client_name, password_hash (null for valets), driver_license_number, driver_license_photo, is_active, created_at}`
-- **vehicles**: `{id, phone_number, license_plate, tag_number, status, parked_at, parked_by, location, zone_label, client_id}`
-- **tickets**: `{id, vehicle_id, status, created_at, claimed_by, claimed_at, client_id}`
+- **users**: `{id, email, name, phone_number, role, client_id, client_name, password_hash (null for valets/admins), driver_license_number, driver_license_photo, is_active, created_at}`
+- **vehicles**: `{id, phone_number, license_plate, tag_number, parked_at, parked_by, zone_label, gps_latitude, gps_longitude}`
+- **tickets**: `{id, vehicle_id, customer_phone, status, created_at, claimed_by, claimed_at, arrived_at, completed_at}`
 - **otps**: `{phone_number, otp, expires_at, created_at}`
 
 ## Known Issues
