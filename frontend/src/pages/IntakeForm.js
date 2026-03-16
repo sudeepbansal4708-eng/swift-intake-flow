@@ -189,21 +189,38 @@ export default function IntakeForm() {
 
               <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                  GPS Location
+                  GPS Location (Optional)
                 </Label>
-                <Button
-                  data-testid="gps-button"
-                  type="button"
-                  onClick={captureLocation}
-                  disabled={gettingLocation}
-                  className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
-                >
-                  <Navigation className="w-4 h-4 mr-2" />
-                  {gettingLocation ? 'Getting Location...' : formData.gps_latitude ? '✅ Location Captured' : 'Capture GPS Location'}
-                </Button>
-                {formData.gps_latitude && (
+                <div className="flex gap-2">
+                  <Button
+                    data-testid="gps-button"
+                    type="button"
+                    onClick={captureLocation}
+                    disabled={gettingLocation}
+                    className="flex-1 h-12 rounded-lg font-medium transition-all active:scale-95 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
+                  >
+                    <Navigation className="w-4 h-4 mr-2" />
+                    {gettingLocation ? 'Getting...' : formData.gps_latitude ? '✅ Captured' : 'Capture GPS'}
+                  </Button>
+                  {!formData.gps_latitude && (
+                    <Button
+                      data-testid="skip-gps-button"
+                      type="button"
+                      onClick={() => setFormData({ ...formData, gps_latitude: 0, gps_longitude: 0 })}
+                      className="h-12 px-4 rounded-lg font-medium transition-all active:scale-95 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-700"
+                    >
+                      Skip
+                    </Button>
+                  )}
+                </div>
+                {formData.gps_latitude && formData.gps_latitude !== 0 && (
                   <p className="text-xs text-emerald-400 mt-2">
                     📍 {formData.gps_latitude.toFixed(6)}, {formData.gps_longitude.toFixed(6)}
+                  </p>
+                )}
+                {formData.gps_latitude === 0 && (
+                  <p className="text-xs text-amber-400 mt-2">
+                    ⚠️ GPS skipped - Using manual location only
                   </p>
                 )}
               </div>
@@ -271,11 +288,16 @@ export default function IntakeForm() {
               <Button
                 data-testid="submit-button"
                 type="submit"
-                disabled={loading || !formData.gps_latitude}
+                disabled={loading}
                 className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-500/50"
               >
                 {loading ? 'Parking...' : 'PARK VEHICLE ✓'}
               </Button>
+              {!formData.gps_latitude && (
+                <p className="text-xs text-amber-400 text-center">
+                  ⚠️ GPS not captured (optional in preview mode)
+                </p>
+              )}
             </form>
           </Card>
         )}
