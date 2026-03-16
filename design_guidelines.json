@@ -1,0 +1,144 @@
+{
+  "brand_identity": {
+    "name": "SwiftValet",
+    "core_values": ["Speed", "Trust", "Premium Precision"],
+    "emotional_archetype": "The Performance Pro",
+    "visual_mood": "Tactical Minimalism"
+  },
+  "theme": {
+    "mode": "dark",
+    "colors": {
+      "background": "#09090B",
+      "surface": "#18181B",
+      "surface_highlight": "#27272A",
+      "primary": "#3B82F6",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#27272A",
+      "secondary_foreground": "#FFFFFF",
+      "accent": "#10B981",
+      "destructive": "#EF4444",
+      "border": "#27272A",
+      "input": "#27272A",
+      "ring": "#3B82F6"
+    },
+    "gradients": {
+      "brand_glow": "radial-gradient(circle at center, rgba(59, 130, 246, 0.15) 0%, rgba(9, 9, 11, 0) 70%)",
+      "scan_beam": "linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.5), transparent)"
+    }
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Barlow Condensed, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "weights": {
+      "heading": "700",
+      "body_regular": "400",
+      "body_medium": "500",
+      "body_bold": "600"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl tracking-tight font-bold uppercase",
+      "h2": "text-3xl tracking-tight font-bold uppercase",
+      "h3": "text-2xl font-semibold uppercase",
+      "body_lg": "text-lg leading-relaxed",
+      "body_base": "text-base leading-relaxed",
+      "body_sm": "text-sm text-zinc-400",
+      "caption": "text-xs text-zinc-500 uppercase tracking-wider"
+    },
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');"
+    ]
+  },
+  "components": {
+    "buttons": {
+      "default": "h-12 px-6 rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none",
+      "primary": "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-500/50",
+      "secondary": "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700",
+      "outline": "bg-transparent border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white",
+      "ghost": "hover:bg-zinc-800 text-zinc-400 hover:text-white",
+      "destructive": "bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40",
+      "fab": "fixed bottom-6 right-6 h-14 w-14 rounded-full bg-blue-600 text-white shadow-xl flex items-center justify-center z-50 hover:scale-105 active:scale-95"
+    },
+    "cards": {
+      "base": "bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-xl overflow-hidden",
+      "hover": "hover:border-zinc-700 transition-colors duration-200",
+      "glass": "bg-black/40 backdrop-blur-xl border border-white/10"
+    },
+    "inputs": {
+      "base": "h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none",
+      "label": "text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide"
+    },
+    "status_badges": {
+      "base": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+      "success": "bg-emerald-950/30 text-emerald-400 border-emerald-900/50",
+      "warning": "bg-amber-950/30 text-amber-400 border-amber-900/50",
+      "error": "bg-red-950/30 text-red-400 border-red-900/50",
+      "info": "bg-blue-950/30 text-blue-400 border-blue-900/50",
+      "neutral": "bg-zinc-800 text-zinc-400 border-zinc-700"
+    },
+    "navigation": {
+      "bottom_bar": "fixed bottom-0 left-0 right-0 h-16 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-800 flex justify-around items-center z-40 pb-safe",
+      "item": "flex flex-col items-center justify-center w-full h-full text-zinc-500 hover:text-white aria-[current=page]:text-blue-500 transition-colors"
+    }
+  },
+  "layout_strategies": {
+    "mobile_container": "max-w-md mx-auto min-h-screen bg-black text-white pb-24 relative overflow-x-hidden",
+    "section_spacing": "space-y-6 p-4",
+    "grid_dashboard": "grid grid-cols-2 gap-3",
+    "list_view": "space-y-3"
+  },
+  "animations": {
+    "page_transition": {
+      "initial": { "opacity": 0, "y": 10 },
+      "animate": { "opacity": 1, "y": 0 },
+      "exit": { "opacity": 0, "y": -10 },
+      "transition": { "duration": 0.2 }
+    },
+    "micro_interactions": {
+      "tap": "active:scale-95 transition-transform",
+      "hover_lift": "hover:-translate-y-0.5 transition-transform"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_hero": "https://images.unsplash.com/photo-1576411666423-53e284986604?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHx2YWxldCUyMGRyaXZlciUyMGhvbGRpbmclMjBrZXlzJTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc3MzY4NzU3Mnww&ixlib=rb-4.1.0&q=85",
+      "valet_avatar": "https://images.unsplash.com/photo-1770199105692-9e52ff137cad?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwyfHx2YWxldCUyMGRyaXZlciUyMGhvbGRpbmclMjBrZXlzJTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc3MzY4NzU3Mnww&ixlib=rb-4.1.0&q=85",
+      "map_placeholder": "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=1000",
+      "qr_code_mock": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ExampleTicket123",
+      "empty_state_car": "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "preferred_set": ["Car", "MapPin", "QrCode", "Clock", "User", "Settings", "LogOut", "Camera", "Navigation", "CheckCircle", "AlertTriangle"]
+    }
+  },
+  "universal_guidelines": [
+    "ALWAYS use 'Barlow Condensed' for headings (h1, h2, h3). Import it in index.css.",
+    "ALWAYS use 'Inter' for body text.",
+    "Dark mode is the default and ONLY mode for this iteration. Do not implement light mode toggle unless requested.",
+    "All interactive elements MUST have a minimum touch target of 44x44px (mobile PWA rule).",
+    "Use 'lucide-react' for all icons.",
+    "Input fields on mobile should use type='tel' or 'number' where appropriate to trigger correct keyboards.",
+    "Use 'sonner' for all toast notifications.",
+    "Ensure high contrast (WCAG AA) for all text. Light gray on black.",
+    "Do NOT use pure black (#000000) for backgrounds. Use Zinc-950 (#09090B).",
+    "All buttons must have 'active:scale-95' for tactile feedback.",
+    "The 'Scan QR' or 'New Ticket' button should be the most prominent element on the driver dashboard."
+  ],
+  "instructions_to_main_agent": {
+    "setup": [
+      "Add the Google Fonts import to /app/frontend/src/index.css immediately.",
+      "Update tailwind.config.js to extend the font family theme with 'heading' (Barlow Condensed) and 'body' (Inter).",
+      "Create a 'Layout' component that enforces the mobile container width (max-w-md mx-auto) to simulate a mobile app on desktop screens.",
+      "Install 'lucide-react' if not present."
+    ],
+    "file_structure_suggestions": {
+      "components": "/app/frontend/src/components/ui",
+      "pages": "/app/frontend/src/pages",
+      "layouts": "/app/frontend/src/layouts",
+      "hooks": "/app/frontend/src/hooks"
+    }
+  }
+}
