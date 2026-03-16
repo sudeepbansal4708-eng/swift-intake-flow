@@ -6,11 +6,12 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SuperAdminPanel() {
   const [clients, setClients] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -22,13 +23,17 @@ export default function SuperAdminPanel() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchClients();
+    fetchData();
   }, []);
 
-  const fetchClients = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/super-admin/clients`);
-      setClients(response.data);
+      const [clientsRes, analyticsRes] = await Promise.all([
+        axios.get(`${API}/super-admin/clients`),
+        axios.get(`${API}/super-admin/analytics`)
+      ]);
+      setClients(clientsRes.data);
+      setAnalytics(analyticsRes.data);
     } catch (error) {
       if (error.response?.status === 403) {
         toast.error('Super admin access required');
@@ -46,7 +51,7 @@ export default function SuperAdminPanel() {
       toast.success('Admin created successfully!');
       setShowAddForm(false);
       setFormData({ email: '', password: '', name: '', client_name: '' });
-      fetchClients();
+      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create admin');
     }
@@ -58,7 +63,7 @@ export default function SuperAdminPanel() {
     try {
       await axios.delete(`${API}/super-admin/admins/${adminId}`);
       toast.success('Admin deactivated');
-      fetchClients();
+      fetchData();
     } catch (error) {
       toast.error('Failed to deactivate admin');
     }
@@ -96,6 +101,34 @@ export default function SuperAdminPanel() {
             <p className="text-sm text-zinc-400">Manage client admins</p>
           </div>
         </div>
+
+        {analytics && (
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="bg-gradient-to-br from-amber-950/30 to-zinc-900/50 backdrop-blur-md border border-amber-800/50 p-4">
+              <Building className="w-6 h-6 text-amber-400 mb-2" />
+              <div className="text-3xl font-bold text-white">{analytics.total_clients}</div>
+              <div className="text-xs text-amber-400 uppercase tracking-wider">Total Clients</div>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-blue-950/30 to-zinc-900/50 backdrop-blur-md border border-blue-800/50 p-4">
+              <Car className="w-6 h-6 text-blue-400 mb-2" />
+              <div className="text-3xl font-bold text-white">{analytics.cars_parked_now}</div>
+              <div className="text-xs text-blue-400 uppercase tracking-wider">Cars Parked Now</div>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4">
+              <DollarSign className="w-6 h-6 text-emerald-400 mb-2" />
+              <div className="text-3xl font-bold text-white">₹{analytics.total_tips_today}</div>
+              <div className="text-xs text-emerald-400 uppercase tracking-wider">Tips Today</div>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-purple-950/30 to-zinc-900/50 backdrop-blur-md border border-purple-800/50 p-4">
+              <TrendingUp className="w-6 h-6 text-purple-400 mb-2" />
+              <div className="text-3xl font-bold text-white">{analytics.tickets_today}</div>
+              <div className="text-xs text-purple-400 uppercase tracking-wider">Tickets Today</div>
+            </Card>
+          </div>
+        )}
 
         <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6">
           <div className="flex items-center justify-between mb-4">

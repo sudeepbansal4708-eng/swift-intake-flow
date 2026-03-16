@@ -583,13 +583,58 @@ async def get_clients(current_user: dict = Depends(get_current_user)):
         client_id = admin.get('client_id')
         if client_id:
             valets_count = await db.users.count_documents({"client_id": client_id, "role": "valet", "is_active": True})
-            vehicles_count = await db.vehicles.count_documents({"parked_by": {"$in": [admin['id']]} if admin.get('id') else {}})
+            vehicles_count = await db.vehicles.count_documents({})
             admin['stats'] = {
                 "valets": valets_count,
                 "vehicles": vehicles_count
             }
     
     return admins
+
+@api_router.get("/super-admin/analytics")
+async def get_super_admin_analytics(current_user: dict = Depends(get_current_user)):
+    """Get platform-wide analytics for super admin"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    # Total clients
+    total_clients = await db.users.count_documents({"role": "admin", "is_active": True})
+    
+    # Total cars parked right now (vehicles that have open/claimed/en_route/arrived tickets)
+    active_tickets = await db.tickets.find(
+        {"status": {"$in": ["open", "claimed", "en_route", "arrived"]}},
+        {"_id": 0, "vehicle_id": 1}
+    ).to_list(1000)
+    active_vehicle_ids = list(set([t['vehicle_id'] for t in active_tickets]))
+    cars_parked_now = len(active_vehicle_ids)
+    
+    # Total tips for today (cumulative across all clients)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    tips_today = await db.tips.find({
+        "created_at": {"$gte": today_start.isoformat()},
+        "status": "paid"
+    }, {"_id": 0}).to_list(1000)
+    total_tips_today = sum([tip.get('amount', 0) for tip in tips_today])
+    
+    # Total vehicles all time
+    total_vehicles = await db.vehicles.count_documents({})
+    
+    # Total valets across all clients
+    total_valets = await db.users.count_documents({"role": "valet", "is_active": True})
+    
+    # Total tickets today
+    tickets_today = await db.tickets.count_documents({
+        "created_at": {"$gte": today_start.isoformat()}
+    })
+    
+    return {
+        "total_clients": total_clients,
+        "cars_parked_now": cars_parked_now,
+        "total_tips_today": total_tips_today,
+        "total_vehicles": total_vehicles,
+        "total_valets": total_valets,
+        "tickets_today": tickets_today
+    }
 
 @api_router.post("/super-admin/admins")
 async def create_admin(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
