@@ -200,6 +200,62 @@ export default function TicketDetail() {
           </div>
         </Card>
 
+        {ticket.status === 'claimed' && (
+          <Card className="bg-blue-950/30 backdrop-blur-md border border-blue-900/50 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-500/50 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-lg uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                  Retrieval Information
+                </h3>
+                <p className="text-xs text-blue-400">Vehicle location & details</p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {ticket.vehicle?.zone_label && (
+                <div className="flex items-start gap-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
+                  <MapPin className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Parking Location</div>
+                    <div className="text-white font-medium">{ticket.vehicle.zone_label}</div>
+                  </div>
+                </div>
+              )}
+              
+              {ticket.vehicle?.tag_number && (
+                <div className="flex items-start gap-3 p-3 bg-amber-950/20 rounded-lg border border-amber-900/50">
+                  <span className="text-2xl">🏷️</span>
+                  <div className="flex-1">
+                    <div className="text-xs text-amber-400/70 uppercase tracking-wider mb-1">Key Tag</div>
+                    <div className="text-amber-400 font-bold text-xl">{ticket.vehicle.tag_number}</div>
+                  </div>
+                </div>
+              )}
+
+              {ticket.vehicle?.gps_latitude && ticket.vehicle.gps_latitude !== 0 && (
+                <div className="flex items-start gap-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
+                  <Navigation className="w-5 h-5 text-emerald-400 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">GPS Coordinates</div>
+                    <div className="text-white text-sm font-mono">
+                      {ticket.vehicle.gps_latitude.toFixed(6)}, {ticket.vehicle.gps_longitude.toFixed(6)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-950/20 border border-blue-900/30 rounded-lg">
+              <p className="text-sm text-blue-300 text-center">
+                👆 Use this info to locate the vehicle. Click below when you've arrived with the car.
+              </p>
+            </div>
+          </Card>
+        )}
+
         {ticket.status === 'arrived' && timer !== null && (
           <Card className="bg-amber-950/20 backdrop-blur-md border border-amber-900/50 p-6 text-center">
             <Clock className="w-12 h-12 text-amber-400 mx-auto mb-3" />

@@ -43,7 +43,8 @@ export default function Dashboard() {
     try {
       await axios.put(`${API}/tickets/${ticketId}/claim`);
       toast.success('Ticket claimed!');
-      fetchTickets();
+      // Navigate directly to ticket detail page
+      navigate(`/ticket/${ticketId}`);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to claim ticket');
     }
