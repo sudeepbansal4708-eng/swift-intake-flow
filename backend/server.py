@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional
 import uuid
+import random
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
@@ -75,27 +76,42 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
     name: str
+    phone_number: Optional[str] = None
     role: str = "valet"  # valet, admin, super_admin
-    client_id: Optional[str] = None  # Which client this user belongs to
-    client_name: Optional[str] = None  # Client/business name (e.g., "The Grand Hotel")
-    driver_license_number: Optional[str] = None  # For valets
-    driver_license_photo: Optional[str] = None  # Base64 image for valets
-    password_hash: str
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
+    driver_license_number: Optional[str] = None
+    driver_license_photo: Optional[str] = None
+    password_hash: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
 
 class UserCreate(BaseModel):
     email: EmailStr
     name: str
-    password: str
+    password: Optional[str] = None
     role: str = "valet"
     client_id: Optional[str] = None
     client_name: Optional[str] = None
+    driver_license_number: Optional[str] = None
+    phone_number: Optional[str] = None
+
+class ValetCreate(BaseModel):
+    email: EmailStr
+    name: str
+    phone_number: str
     driver_license_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+class OTPRequest(BaseModel):
+    phone_number: str
+
+class OTPVerify(BaseModel):
+    phone_number: str
+    otp: str
 
 class Vehicle(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -270,6 +286,75 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "role": current_user['role'],
         "client_name": current_user.get('client_name'),
         "client_id": current_user.get('client_id')
+    }
+
+@api_router.post("/auth/otp/request")
+async def request_otp(data: OTPRequest):
+    """Send OTP to valet's WhatsApp number"""
+    phone = data.phone_number.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    user = await db.users.find_one({"phone_number": phone, "role": "valet"}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No valet account found with this phone number")
+
+    if not user.get('is_active', True):
+        raise HTTPException(status_code=401, detail="Account is inactive")
+
+    otp = str(random.randint(100000, 999999))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+
+    await db.otps.delete_many({"phone_number": phone})
+    await db.otps.insert_one({
+        "phone_number": phone,
+        "otp": otp,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    message = f"Your SwiftValet login code is: {otp}\n\nThis code expires in 10 minutes."
+    whatsapp_result = await send_whatsapp_message(phone, message)
+    logging.info(f"OTP sent to {phone}: result={whatsapp_result}")
+
+    return {"message": "OTP sent to your WhatsApp", "phone_number": phone}
+
+@api_router.post("/auth/otp/verify")
+async def verify_otp(data: OTPVerify):
+    """Verify OTP and return JWT token"""
+    phone = data.phone_number.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    otp_record = await db.otps.find_one({"phone_number": phone}, {"_id": 0})
+    if not otp_record:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+
+    if otp_record['otp'] != data.otp.strip():
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    expires_at = datetime.fromisoformat(otp_record['expires_at'])
+    if datetime.now(timezone.utc) > expires_at:
+        await db.otps.delete_many({"phone_number": phone})
+        raise HTTPException(status_code=400, detail="OTP expired. Please request a new one.")
+
+    await db.otps.delete_many({"phone_number": phone})
+
+    user = await db.users.find_one({"phone_number": phone, "role": "valet"}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Valet account not found")
+
+    token = create_access_token({"sub": user['email'], "role": user['role']})
+    return {
+        "token": token,
+        "user": {
+            "id": user['id'],
+            "email": user['email'],
+            "name": user['name'],
+            "role": user['role'],
+            "client_name": user.get('client_name'),
+            "client_id": user.get('client_id')
+        }
     }
 
 @api_router.post("/vehicles")
@@ -539,29 +624,40 @@ async def update_admin_profile(
     return {"message": "Profile updated successfully", "name": name, "client_name": client_name}
 
 @api_router.post("/admin/valets")
-async def create_valet(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
-    """Admin can create valets for their client"""
+async def create_valet(valet_data: ValetCreate, current_user: dict = Depends(get_current_user)):
+    """Admin can create valets for their client (no password — valets use OTP login)"""
     if current_user['role'] != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    existing = await db.users.find_one({"email": user_data.email})
+    # Normalize phone number
+    phone = valet_data.phone_number.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    existing = await db.users.find_one({"email": valet_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Valet inherits admin's client_id
-    user_dict = user_data.model_dump()
-    user_dict['client_id'] = current_user.get('client_id')
-    user_dict['client_name'] = current_user.get('client_name')
-    user_dict['role'] = 'valet'  # Force valet role
-    user_dict['password_hash'] = get_password_hash(user_dict.pop('password'))
-    user_obj = User(**user_dict)
+    existing_phone = await db.users.find_one({"phone_number": phone, "role": "valet"})
+    if existing_phone:
+        raise HTTPException(status_code=400, detail="Phone number already registered to another valet")
+    
+    user_obj = User(
+        email=valet_data.email,
+        name=valet_data.name,
+        phone_number=phone,
+        role="valet",
+        client_id=current_user.get('client_id'),
+        client_name=current_user.get('client_name'),
+        driver_license_number=valet_data.driver_license_number,
+    )
     
     doc = user_obj.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     
     await db.users.insert_one(doc)
     
-    return {"message": "Valet created", "user": {"id": user_obj.id, "email": user_obj.email, "name": user_obj.name}}
+    return {"message": "Valet created", "user": {"id": user_obj.id, "email": user_obj.email, "name": user_obj.name, "phone_number": phone}}
 
 @api_router.delete("/admin/valets/{valet_id}")
 async def delete_valet(valet_id: str, current_user: dict = Depends(get_current_user)):
