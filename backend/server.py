@@ -168,7 +168,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 async def send_whatsapp_message(phone_number: str, message: str):
     """Send WhatsApp message via Twilio API"""
     if not twilio_client or not TWILIO_WHATSAPP_FROM:
-        logging.warning(f"Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
+        logging.warning(f"❌ Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
         return {"status": "not_configured", "message": "Twilio WhatsApp credentials not set"}
     
     try:
@@ -176,21 +176,30 @@ async def send_whatsapp_message(phone_number: str, message: str):
         to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
         from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
         
-        # Send message via Twilio
+        logging.info(f"📱 Attempting to send WhatsApp message...")
+        logging.info(f"   From: {from_whatsapp}")
+        logging.info(f"   To: {to_whatsapp}")
+        logging.info(f"   Message preview: {message[:50]}...")
+        
+        # Send message via Twilio (synchronous call)
         twilio_message = twilio_client.messages.create(
             body=message,
             from_=from_whatsapp,
             to=to_whatsapp
         )
         
-        logging.info(f"WhatsApp message sent via Twilio. SID: {twilio_message.sid}, Status: {twilio_message.status}")
+        logging.info(f"✅ WhatsApp message sent successfully!")
+        logging.info(f"   Message SID: {twilio_message.sid}")
+        logging.info(f"   Status: {twilio_message.status}")
+        
         return {
             "status": "sent",
             "message_sid": twilio_message.sid,
             "twilio_status": twilio_message.status
         }
     except Exception as e:
-        logging.error(f"Twilio WhatsApp send error: {str(e)}")
+        logging.error(f"❌ Twilio WhatsApp send error: {str(e)}")
+        logging.error(f"   Error type: {type(e).__name__}")
         return {"status": "error", "message": str(e)}
 
 # Routes
@@ -264,10 +273,13 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     await db.vehicles.insert_one(doc)
     
     # Send WhatsApp notification
+    print(f"🔔 PREPARING TO SEND WHATSAPP to {vehicle_obj.phone_number}")
     location_info = f"Zone: {vehicle_obj.zone_label}" if vehicle_obj.zone_label else "Location saved"
     tag_info = f"\n🏷️ Tag Number: {vehicle_obj.tag_number}" if vehicle_obj.tag_number else ""
     message = f"🚗 Welcome to SwiftValet!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}{tag_info}\n\nReply 'RETR' when you're ready to retrieve your car."
-    await send_whatsapp_message(vehicle_obj.phone_number, message)
+    
+    whatsapp_result = await send_whatsapp_message(vehicle_obj.phone_number, message)
+    print(f"🔔 WHATSAPP RESULT: {whatsapp_result}")
     
     return {"vehicle": vehicle_obj.model_dump(), "message": "Vehicle parked successfully"}
 
