@@ -255,7 +255,9 @@ async def login(credentials: UserLogin):
             "id": user['id'],
             "email": user['email'],
             "name": user['name'],
-            "role": user['role']
+            "role": user['role'],
+            "client_name": user.get('client_name'),
+            "client_id": user.get('client_id')
         }
     }
 
@@ -265,7 +267,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "id": current_user['id'],
         "email": current_user['email'],
         "name": current_user['name'],
-        "role": current_user['role']
+        "role": current_user['role'],
+        "client_name": current_user.get('client_name'),
+        "client_id": current_user.get('client_id')
     }
 
 @api_router.post("/vehicles")
@@ -497,6 +501,42 @@ async def get_valets(current_user: dict = Depends(get_current_user)):
     
     valets = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return valets
+
+@api_router.put("/admin/profile")
+async def update_admin_profile(
+    name: Optional[str] = None,
+    client_name: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update admin profile (name and client name)"""
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_data = {}
+    if name:
+        update_data['name'] = name
+    if client_name:
+        update_data['client_name'] = client_name
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    
+    result = await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    # Also update all valets under this admin with new client name
+    if client_name:
+        await db.users.update_many(
+            {"client_id": current_user.get('client_id'), "role": "valet"},
+            {"$set": {"client_name": client_name}}
+        )
+    
+    return {"message": "Profile updated successfully", "name": name, "client_name": client_name}
 
 @api_router.post("/admin/valets")
 async def create_valet(user_data: UserCreate, current_user: dict = Depends(get_current_user)):

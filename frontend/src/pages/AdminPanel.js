@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminPanel() {
@@ -19,12 +19,27 @@ export default function AdminPanel() {
   const [selectedValet, setSelectedValet] = useState(null);
   const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
   const [formData, setFormData] = useState({ email: '', password: '', name: '', driver_license_number: '' });
+  const [profileData, setProfileData] = useState({ name: '', client_name: '' });
+  const [profileLoading, setProfileLoading] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
+    fetchProfile();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const res = await axios.get(`${API}/auth/me`);
+      setProfileData({
+        name: res.data.name || '',
+        client_name: res.data.client_name || ''
+      });
+    } catch (error) {
+      console.error('Failed to fetch profile');
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -98,6 +113,26 @@ export default function AdminPanel() {
     setShowLicenseModal(true);
   };
 
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!profileData.name.trim() && !profileData.client_name.trim()) {
+      toast.error('Please fill in at least one field');
+      return;
+    }
+    setProfileLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (profileData.name.trim()) params.append('name', profileData.name.trim());
+      if (profileData.client_name.trim()) params.append('client_name', profileData.client_name.trim());
+      await axios.put(`${API}/admin/profile?${params.toString()}`);
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -145,6 +180,50 @@ export default function AdminPanel() {
             <div className="text-xs text-zinc-400 uppercase tracking-wider">Total Tips</div>
           </Card>
         </div>
+
+        {/* Profile Editor */}
+        <Card data-testid="admin-profile-card" className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <UserCog className="w-5 h-5 text-violet-400" />
+            <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+              My Profile
+            </h2>
+          </div>
+          <form onSubmit={handleSaveProfile} className="space-y-3">
+            <div>
+              <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Your Name</Label>
+              <Input
+                data-testid="admin-profile-name"
+                type="text"
+                value={profileData.name}
+                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                placeholder="Your full name"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Client / Business Name</Label>
+              <Input
+                data-testid="admin-profile-client-name"
+                type="text"
+                value={profileData.client_name}
+                onChange={(e) => setProfileData({ ...profileData, client_name: e.target.value })}
+                className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                placeholder="e.g. The Grand Restaurant"
+              />
+              <p className="text-xs text-zinc-500 mt-1">This name appears in WhatsApp messages sent to customers.</p>
+            </div>
+            <Button
+              data-testid="admin-profile-save-btn"
+              type="submit"
+              disabled={profileLoading}
+              className="w-full h-11 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {profileLoading ? 'Saving...' : 'Save Profile'}
+            </Button>
+          </form>
+        </Card>
 
         <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
           <div className="flex justify-between items-center">
