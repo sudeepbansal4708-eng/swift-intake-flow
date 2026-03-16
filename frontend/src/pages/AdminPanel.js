@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminPanel() {
@@ -161,6 +161,26 @@ export default function AdminPanel() {
           <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
             Admin Panel
           </h1>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex gap-2">
+          <Button
+            data-testid="tab-management-btn"
+            variant="ghost"
+            className="h-9 px-4 rounded-full text-xs uppercase tracking-wider bg-blue-600/20 text-blue-400 border border-blue-500/30"
+          >
+            Management
+          </Button>
+          <Button
+            data-testid="tab-reporting-btn"
+            onClick={() => navigate('/admin/reporting')}
+            variant="ghost"
+            className="h-9 px-4 rounded-full text-xs uppercase tracking-wider text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-800"
+          >
+            <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+            Reporting
+          </Button>
         </div>
 
         <div className="grid grid-cols-3 gap-3">

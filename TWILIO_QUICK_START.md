@@ -30,7 +30,7 @@ tail -20 /var/log/supervisor/backend.out.log
 
 ### Test vehicle parking API:
 ```bash
-API_URL="https://swift-valet-preview.preview.emergentagent.com"
+API_URL="https://swift-valet-preview-1.preview.emergentagent.com"
 
 TOKEN=$(curl -s -X POST "$API_URL/api/auth/login" \
   -H "Content-Type: application/json" \
@@ -88,7 +88,7 @@ sudo supervisorctl status backend
 tail -f /var/log/supervisor/backend.out.log
 
 # Test API
-curl https://swift-valet-preview.preview.emergentagent.com/api/
+curl https://swift-valet-preview-1.preview.emergentagent.com/api/
 ```
 
 ## Common Issues
@@ -110,4 +110,4 @@ See: `/app/TWILIO_SETUP_GUIDE.md` for complete step-by-step instructions
 
 - **Twilio Docs:** https://www.twilio.com/docs/whatsapp
 - **Backend Logs:** `tail -f /var/log/supervisor/backend.out.log`
-- **Test API:** `curl https://swift-valet-preview.preview.emergentagent.com/api/`
+- **Test API:** `curl https://swift-valet-preview-1.preview.emergentagent.com/api/`

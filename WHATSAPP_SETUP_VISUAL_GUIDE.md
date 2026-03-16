@@ -113,7 +113,7 @@ Chat with +1 415 523 8886:
 
 ### Now use SwiftValet:
 
-1. **Go to:** https://swift-valet-preview.preview.emergentagent.com
+1. **Go to:** https://swift-valet-preview-1.preview.emergentagent.com
 2. **Login:** valet@swift.com / valet123
 3. **Click:** Blue "+" button
 4. **Fill in:**

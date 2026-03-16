@@ -4,93 +4,78 @@ The user wants to build a valet parking platform called SwiftValet.
 **PRODUCT REQUIREMENTS:**
 - **User Roles:**
     - **Customer:** Interacts via WhatsApp, no app needed.
-    - **Valet Driver:** Uses a React PWA for intake, scanning, logging, and GPS pinning.
-    - **Admin:** Manages valet drivers (add/delete), tracks tips, and views all car statuses for their specific client (e.g., a restaurant).
-    - **Super Admin:** A top-level role that can add/manage Admins for different clients and view platform-wide analytics.
+    - **Valet Driver:** Uses a React PWA for intake, scanning, logging, and GPS pinning. Logins via OTP.
+    - **Admin:** Manages valet drivers (add/delete), tracks tips, and views all car statuses for their specific client (e.g., a restaurant). Logins via OTP.
+    - **Super Admin:** A top-level role that can add/manage Admins for different clients and view platform-wide analytics. Logins via email/password.
 - **Functional Requirements:**
     - **Phase A: Intake & Parking**
         - Quick Intake: Valet enters Phone Number, License Plate, and a physical Tag Number.
         - The intake is a 2-step process: 1. Car Handoff (Phone, Plate), 2. Parking Location (GPS, Landmark, Tag Number).
-        - GPS should be optional to allow testing in preview environments.
-        - Auto-Notification: A WhatsApp message is sent to the customer with parking details, including the client's name (e.g., Welcome from The Grand Restaurant!) and the tag number.
+        - GPS should be optional.
+        - Auto-Notification: A WhatsApp message is sent to the customer with parking details.
     - **Phase B: Retrieval & Claiming**
         - Request: Customer replies RETR to the WhatsApp message to create an Open Ticket.
         - Claim: A push notification is sent to all active valets. The first to claim gets the ticket.
-        - Streamlined Claiming: Claiming a ticket should immediately open the ticket details view.
-        - Simplified Status: Valet marks the car as ARRIVED at the curb (combining previous En Route and Arrived steps).
     - **Phase C: The Ghosting Protocol**
         - 5-Minute Rule: A timer starts when the car arrives.
-        - Return to Park: If the customer doesn't show up, the valet can return the car to a parking spot, with an option to update the location if a better spot is available.
+        - Return to Park: If the customer doesn't show up, the valet can return the car to a parking spot.
     - **Phase D: Handover & Gratuity**
         - Handover: Valet marks handover as complete.
         - Tipping: (Deferred for now).
     - **Admin & Super Admin Features:**
         - Admins can add their name and their client's name (e.g., restaurant name) in a profile section.
-        - When adding valets, Admins must collect a driver's license photo and number for verification.
-        - Super Admins have a dashboard to view total clients, currently parked cars, and cumulative tips for the day.
+        - When adding valets, Admins must collect a driver's license photo and number.
+        - Super Admins have a dashboard to view platform analytics.
+        - Valets and Admins are created using their phone number, without a password.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack valet platform with a React frontend and FastAPI backend. It supports four user roles: Valet, Admin, Super Admin, and the customer (via WhatsApp).
-
-Key implemented features include:
-- JWT-based authentication for all app roles.
-- A multi-step vehicle intake form (phone, plate, optional GPS, landmark, tag number).
-- Twilio integration for sending WhatsApp notifications upon parking.
-- A retrieval ticket system initiated by the customer replying RETR (the webhook code is ready but requires user configuration in Twilio).
-- Role-based dashboards for Valets, Admins (driver management, license viewing), and Super Admins (client management, analytics).
-- A simplified retrieval workflow and an option for valets to Return to Park with a location update.
+The application is a full-stack valet platform with a React frontend and FastAPI backend. It supports four user roles.
+- **Authentication**:
+    - Super Admins log in with email and password.
+    - Admins and Valets now use a passwordless, OTP-based login system tied to their phone numbers.
+- **Key Features**:
+    - A multi-step vehicle intake form.
+    - Twilio integration for sending WhatsApp notifications.
+    - A retrieval ticket system initiated by the customer (pending configuration).
+    - Role-based dashboards for Valets, Admins, and Super Admins.
+    - An admin profile editor to set admin and client names.
+    - Super Admin panel for managing admins and viewing analytics.
+    - A system for Admins to manage valets, including viewing their driver's licenses.
 
 **Last working item**:
-    - Last item agent was working: The agent was about to start implementing a profile editor for Admins to let them add their own name and their client's name.
-    - Status: NOT STARTED
-    - Agent Testing Done: N/A
-    - Which testing method agent to use? Frontend testing agent
-    - User Testing Done: N/A
+    - Last item agent was working: Implemented OTP-based (passwordless) login for Admins, mirroring the same flow previously built for Valets. This involved backend model/endpoint changes and frontend UI updates to the Super Admin panel and Login page.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? NA
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: Customer-initiated retrieval via WhatsApp (RETR) is not working.
-  - Issue 2: Admins cannot edit their name and client name.
+  - Issue 1: Customer-initiated retrieval via WhatsApp (RETR) is not working. (P0)
 
   Issues Detail:
   - Issue 1: 
-     - Attempted fixes: The agent has correctly identified that the backend webhook endpoint () is functional. The code has been fixed to handle Twilio's request format (form data, not query params) and phone number formatting (adding a  prefix). The issue is not with the code, but with the user's Twilio account configuration.
-     - Next debug checklist: The user MUST configure the inbound message webhook in their Twilio WhatsApp Sandbox settings.
+     - Attempted fixes: The backend webhook endpoint () is functionally correct and has been updated to handle Twilio's request format (form data,  prefixed phone numbers). The issue is confirmed to be a user-side configuration problem.
+     - Next debug checklist: The user MUST configure the inbound message webhook in their Twilio WhatsApp Sandbox settings. The next agent must guide the user through these steps:
         1.  Navigate to the Twilio Console: [https://console.twilio.com/us1/develop/sms/settings/whatsapp-sandbox](https://console.twilio.com/us1/develop/sms/settings/whatsapp-sandbox)
-        2.  Scroll down to the WHEN A MESSAGE COMES IN section.
-        3.  Ensure the Webhooks option is selected.
-        4.  Paste the following URL into the input field:  (The agent will need to provide the dynamic URL).
-        5.  Set the method to .
-        6.  Click Save.
-     - Why fix this issue and what will be achieved with the fix? This is a P0, core functionality of the application. Fixing it will enable the entire vehicle retrieval workflow initiated by the customer.
+        2.  Scroll to the WHEN A MESSAGE COMES IN section.
+        3.  Paste the app's webhook URL into the input field: .
+        4.  Set the method to  and click Save.
+     - Why fix this issue and what will be achieved with the fix? This is a P0, core functionality. Fixing it enables the entire customer-initiated vehicle retrieval workflow.
      - Status:  BLOCKED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? both
      - Blocked on other issue: User action is required to configure the Twilio webhook.
-
-  - Issue 2: 
-     - Attempted fixes: None.
-     - Next debug checklist: 
-        1. Create a new backend endpoint (e.g., ) that allows an authenticated admin to update their  and .
-        2. Create a new frontend component (e.g., ) with a form for these two fields.
-        3. Add a Profile section or button in the Admin dashboard to render this component.
-        4. Ensure the  is dynamically pulled into the WhatsApp notification messages.
-     - Why fix this issue and what will be achieved with the fix? This will allow for client branding in WhatsApp messages and better identification of admins.
-     - Status:  NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? both
-     - Blocked on other issue: None.
 
 **In progress Task List**:
   None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - **P0**: Fix the RETR webhook by guiding the user through the Twilio configuration.
-    - **P1**: Implement the Admin profile editor to add/edit admin name and client name.
-    - **P2**: Implement Phase C: The Ghosting Protocol. This involves adding a 5-minute timer after a car is marked ARRIVED and handling the Return to Park logic.
-    - **P3**: Implement Phase D: Handover & Gratuity. This involves adding a Handover Complete status and integrating a payment link generator (Stripe/Razorpay was mentioned). Preset tipping amounts (, 0, 0) should be included.
+    - **P0**: Guide the user to fix the RETR webhook by configuring Twilio.
+    - **P1**: Implement Phase C: The Ghosting Protocol. This involves adding a 5-minute timer after a car is marked ARRIVED and handling the Return to Park logic.
+    - **P2**: Implement Phase D: Handover & Gratuity. This involves adding a Handover Complete status and integrating a payment solution.
 
     Future Tasks:
     - Implement a drip reminder for tips if no payment is detected after 12 hours.
@@ -98,34 +83,27 @@ Key implemented features include:
 
 **Completed work in this session**
 - List of all completed tasks with file and method name:
-  - **Authentication**: Implemented JWT authentication with roles (Valet, Admin, Super Admin) in .
-  - **Multi-Step Intake Form**: Created  for the 2-step parking process.
-  - **Twilio Integration**: Configured Twilio SDK and created  in .
-  - **Tag Number Feature**: Added  to the Vehicle model and integrated it into the intake form, dashboard cards (), ticket details (), and WhatsApp messages.
-  - **Optional GPS**: Modified  to make GPS capture optional with a Skip GPS button.
-  - **Super Admin Role & Panel**: Implemented logic in  and created  for client and admin management.
-  - **Super Admin Analytics**: Created  endpoint and corresponding UI in .
-  - **Driver License Verification**: Added file upload endpoint in  and UI in  for managing valet licenses.
-  - **Client Name Branding**: Added  to the user model and included it in WhatsApp messages.
-  - **Simplified Retrieval Workflow**: Updated  to streamline status buttons.
-  - **Return to Park with Location Update**: Added UI in  and a backend endpoint  to handle this.
-  - **Webhook Fixes**: Corrected the  endpoint in  to handle Twilio's request format.
+  - **Admin Profile Editor**: Added a section for Admins to edit their  and . (, )
+  - **OTP Login for Valets**: Converted valet authentication from password-based to phone number + OTP. (, , )
+  - **OTP Login for Admins**: Converted admin authentication from password-based to phone number + OTP. (, , )
+  - **PRD Updates**: Updated  to reflect the latest changes.
 
 - Recently completed:
-  - Super Admin analytics dashboard (DONE)
-  - Driver license verification for valets (DONE)
-  - Simplified retrieval workflow (DONE)
-  - Return to Park with location update (DONE)
+  - OTP-based authentication for Admins (DONE)
+  - OTP-based authentication for Valets (DONE)
+  - Admin Profile Editor (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    - Issue 1: **Twilio Webhook Configuration**
-     - Debug checklist: The user must manually set the webhook URL in their Twilio account settings. The agent has repeatedly provided the correct URL and instructions, but the user has not confirmed completion. This is a user-side configuration block, not a code issue.
+     - Debug checklist: The user must manually set the webhook URL in their Twilio account settings. This is a user-side configuration block, not a code issue.
      - Why to solve this issue and what will be achieved with this? It's the primary mechanism for customers to request their car back. Without it, the retrieval loop is broken.
      - Should Test frontend/backend/both after fix: both
      - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
-  - None.
+  - Issue recurrence in previous fork: The RETR feature not working due to the Twilio webhook not being configured by the user has been reported in multiple sessions.
+  - Recurrence count: 3+
+  - Status: BLOCKED
 
 **Code Architecture**
 
@@ -135,6 +113,7 @@ Key implemented features include:
 - **Frontend**: React, React Router, Tailwind CSS, Shadcn/UI components, Axios for API calls.
 - **Database**: MongoDB.
 - **Architecture**: Single-server monorepo with a React SPA frontend and a FastAPI backend.
+- **Authentication**: Hybrid model - email/password for Super Admin, OTP/phone for Admin and Valet roles.
 
 **key DB schema**
   - **users**: 
@@ -146,78 +125,61 @@ Key implemented features include:
   - None.
 
 **All files of reference**
-- : The core FastAPI application containing all API endpoints, database logic, and business rules.
-- : Main React component that handles routing based on user roles.
-- : The main view for valets and admins, showing ticket lists.
-- : The two-step form for parking a new vehicle.
-- : The view for managing an active retrieval ticket.
-- : The UI for Admins to manage their valets and view licenses.
-- : The UI for the Super Admin to manage clients, admins, and view analytics.
-- : Contains all secrets, including DB connection, JWT secret, and Twilio credentials.
+- : The core FastAPI application containing all API endpoints, database logic, and business rules, including the new OTP logic.
+- : Handles the new unified OTP and password login flows.
+- : UI for Admins to manage valets (now using phone number) and edit their own profile.
+- : UI for Super Admin to manage admins (now using phone number).
+- : Contains updated product requirements.
 
 **Areas that need refactoring**:
-- The  file is becoming very large. Consider splitting endpoints into multiple router files (e.g., , , ) for better organization.
+- The  file is now over 1000 lines long and contains all logic for auth, admin, super admin, vehicles, and tickets. It should be split into separate router files (e.g., , ) for maintainability.
 
 **key api endpoints**
-- : User login.
-- : POST to park a new vehicle.
-- : GET to list tickets.
-- : POST for a valet to claim a ticket.
-- : POST to update a ticket's status.
-- : POST endpoint for incoming Twilio messages (e.g., RETR).
-- : GET/POST for Super Admin to manage Admins.
-- : GET/POST for Admin to manage Valets.
-- : GET for Super Admin dashboard stats.
+- : Super Admin login.
+- : POST for Admins/Valets to request an OTP.
+- : POST to verify an OTP and receive a JWT.
+- : POST for incoming Twilio messages (RETR).
+- : PUT for an admin to update their name/client_name.
+- : POST to create a valet (now uses phone number, no password).
+- : POST to create an admin (now uses phone number, no password).
 
 **Critical Info for New Agent**
-- **Twilio is in Sandbox/Trial Mode**: This has two critical implications:
-    1.  The  number in  **MUST** be the Twilio sandbox number (), not the user's purchased number.
-    2.  Any customer phone number that needs to receive messages must first join the sandbox by sending the unique join code (e.g., join poet-hospital) to the Twilio sandbox number.
-- **The RETR Webhook is BLOCKED by User Action**: The code for the retrieval webhook is complete and tested via . It does not work in practice because the user has not configured the webhook URL in their Twilio account settings. The next agent's first priority is to guide the user to complete this step. Do not attempt to debug the code for this issue further until the user confirms the webhook is set.
+- **Authentication has changed**: Admins and Valets no longer use passwords. They log in via a one-time password (OTP) sent to their phone number. Only Super Admins still use an email/password combination.
+- **The RETR Webhook is BLOCKED by User Action**: Do not attempt to debug the code for the RETR feature. The code is correct. The problem is that the user has not configured the webhook URL in their Twilio account settings. The first priority is to guide the user to complete this setup.
 
 **documents and test reports created in this job**
+-  (updated)
 - 
 - 
 - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1.  - **Pending Implementation**.
-2.  - **Completed**.
-3.  - **Completed**.
-4.  - **Completed**.
-5.  - **Completed**.
-6.  - **Pending User Action**. The user reported the webhook is still not working.
-7.  - **Completed**.
-8.  - **Pending User Action**. This was the first report of the webhook not working.
-9.  - **Resolved**. User provided a number for testing.
-10.  - **Resolved**. User provided a number for testing.
+1.  - **Completed**. User requested OTP login for Admins.
+2.  - **Completed**. User provided specifications for the OTP feature.
+3.  - **Completed**. User initiated the pivot to passwordless authentication for valets.
+4.  - **Completed**. User requested the Admin profile editor feature.
 
 **Project Health Check:**
 - **BROKEN**:
     - The core customer-initiated retrieval flow (RETR via WhatsApp) is non-functional due to a missing configuration on the user's Twilio account.
 - **MOCKED**:
-    - GPS functionality is mocked (made optional) to allow for testing in environments without GPS hardware/permissions.
+    - GPS functionality is optional to allow for testing in environments without GPS hardware/permissions.
 
 **3rd Party Integrations**
 - **Twilio (SMS/WhatsApp)**: Requires a User API Key (Account SID, Auth Token). This integration is for sending and receiving messages. It does NOT use the Emergent LLM Key.
 
 **Testing status**
-  - Testing agent used after significant changes: YES (early in the session)
+  - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created:  (temporary, for debugging)
-  - Known regressions: None. The RETR webhook issue is a persistent setup failure, not a regression.
+  - Test files created: , , 
+  - Known regressions: None.
 
 **Credentials to test flow:**
 - **Super Admin**:
     - Email: 
     - Password: 
-- **Admin**:
-    - Email: 
-    - Password: 
-- **Valet**:
-    - Email: 
-    - Password: 
+- **Admin & Valet**:
+    - Login is now via OTP. Create a new Admin (via Super Admin panel) or Valet (via Admin panel) with a phone number. Use that phone number on the Login page to receive an OTP (the OTP will be printed in the backend logs for testing purposes, as Twilio is not configured to send SMS in the test environment).
 
 **What agent forgot to execute**
-- The agent has not yet implemented the Ghosting Protocol (5-minute timer) or the Tipping logic from the original project requirements.
-- The most critical pending action is ensuring the user configures the Twilio webhook, which has been the cause of a recurring bug report.</analysis>
+- The agent correctly followed user requests. The Ghosting Protocol and Tipping features from the original product requirements remain as upcoming tasks, which is expected.</analysis>

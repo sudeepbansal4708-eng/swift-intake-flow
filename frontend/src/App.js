@@ -8,10 +8,17 @@ import IntakeForm from "./pages/IntakeForm";
 import TicketDetail from "./pages/TicketDetail";
 import AdminPanel from "./pages/AdminPanel";
 import SuperAdminPanel from "./pages/SuperAdminPanel";
+import AdminReporting from "./pages/AdminReporting";
 import { Toaster } from "./components/ui/sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
+
+// Initialize auth from localStorage before any component mounts
+const storedToken = localStorage.getItem('token');
+if (storedToken) {
+  axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+}
 
 export const setAuthToken = (token) => {
   if (token) {
@@ -48,6 +55,7 @@ function App() {
           <Route path="/intake" element={<PrivateRoute><IntakeForm /></PrivateRoute>} />
           <Route path="/ticket/:ticketId" element={<PrivateRoute><TicketDetail /></PrivateRoute>} />
           <Route path="/admin" element={<PrivateRoute><AdminPanel /></PrivateRoute>} />
+          <Route path="/admin/reporting" element={<PrivateRoute><AdminReporting /></PrivateRoute>} />
           <Route path="/super-admin" element={<PrivateRoute><SuperAdminPanel /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
