@@ -304,19 +304,31 @@ async def get_tickets(status: Optional[str] = None, current_user: dict = Depends
     
     tickets = await db.tickets.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
-    # Enrich with vehicle data
-    for ticket in tickets:
-        if isinstance(ticket.get('created_at'), str):
-            ticket['created_at'] = datetime.fromisoformat(ticket['created_at']).isoformat()
+    # Batch fetch all vehicles to avoid N+1 query pattern
+    vehicle_ids = list(set([ticket['vehicle_id'] for ticket in tickets if ticket.get('vehicle_id')]))
+    
+    if vehicle_ids:
+        vehicles_list = await db.vehicles.find({"id": {"$in": vehicle_ids}}, {"_id": 0}).to_list(1000)
+        vehicles_map = {v['id']: v for v in vehicles_list}
         
-        vehicle = await db.vehicles.find_one({"id": ticket['vehicle_id']}, {"_id": 0})
-        if vehicle:
-            ticket['vehicle'] = {
-                "license_plate": vehicle['license_plate'],
-                "phone_number": vehicle['phone_number'],
-                "zone_label": vehicle.get('zone_label'),
-                "photo_url": vehicle.get('photo_url')
-            }
+        # Enrich tickets with vehicle data
+        for ticket in tickets:
+            if isinstance(ticket.get('created_at'), str):
+                ticket['created_at'] = datetime.fromisoformat(ticket['created_at']).isoformat()
+            
+            vehicle = vehicles_map.get(ticket['vehicle_id'])
+            if vehicle:
+                ticket['vehicle'] = {
+                    "license_plate": vehicle['license_plate'],
+                    "phone_number": vehicle['phone_number'],
+                    "zone_label": vehicle.get('zone_label'),
+                    "photo_url": vehicle.get('photo_url')
+                }
+    else:
+        # No vehicles to fetch, just format timestamps
+        for ticket in tickets:
+            if isinstance(ticket.get('created_at'), str):
+                ticket['created_at'] = datetime.fromisoformat(ticket['created_at']).isoformat()
     
     return tickets
 
