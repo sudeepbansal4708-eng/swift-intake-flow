@@ -5,9 +5,9 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 
 ## User Roles
 - **Customer**: Interacts via WhatsApp (no app needed)
-- **Valet Driver**: Uses React PWA for intake, scanning, logging, GPS
-- **Admin**: Manages valets, tips, car statuses for their client
-- **Super Admin**: Manages Admins, platform-wide analytics
+- **Valet Driver**: Uses React PWA, logs in via OTP sent to WhatsApp
+- **Admin**: Manages valets, tips, car statuses for their client (password login)
+- **Super Admin**: Manages Admins, platform-wide analytics (password login)
 
 ## Core Requirements
 ### Phase A: Intake & Parking - DONE
@@ -28,29 +28,37 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 - Preset tipping ($5, $10, $20) with payment link
 
 ## Completed Features
-- JWT auth for all roles (Valet, Admin, Super Admin)
+- JWT auth for Admin/Super Admin (password-based)
+- **Valet OTP Login via WhatsApp** — no password needed, 6-digit OTP, 10-min expiry (completed 2026-03-16)
 - Multi-step vehicle intake with optional GPS
 - Twilio WhatsApp notifications (sandbox mode)
 - Retrieval ticket system (webhook code ready)
-- Admin Panel: valet CRUD, license verification, profile editor
+- Admin Panel: valet CRUD (with phone number), license verification, profile editor
 - Super Admin Panel: client management, analytics dashboard
 - Simplified retrieval workflow
 - Return to Park with location update
-- **Admin Profile Editor** (name + client name) — completed 2026-03-16
+- Admin Profile Editor (name + client name)
 
 ## Tech Stack
 - **Backend**: FastAPI, Motor (async MongoDB), Pydantic, JWT, Twilio SDK
 - **Frontend**: React, React Router, Tailwind CSS, Shadcn/UI, Axios
-- **Database**: MongoDB
+- **Database**: MongoDB (collections: users, vehicles, tickets, tips, otps)
 
 ## Key Credentials
 - Super Admin: superadmin@swiftvalet.com / superadmin123
 - Admin: admin@swift.com / admin123
-- Valet: valet@swift.com / valet123
+- Test Valet Phone: +919999888877 (OTP login)
+
+## DB Schema
+- **users**: `{id, email, name, phone_number, role, client_id, client_name, password_hash (null for valets), driver_license_number, driver_license_photo, is_active, created_at}`
+- **vehicles**: `{id, phone_number, license_plate, tag_number, status, parked_at, parked_by, location, zone_label, client_id}`
+- **tickets**: `{id, vehicle_id, status, created_at, claimed_by, claimed_at, client_id}`
+- **otps**: `{phone_number, otp, expires_at, created_at}`
 
 ## Known Issues
-- **RETR Webhook BLOCKED**: User must configure Twilio webhook URL in their sandbox settings
+- **RETR Webhook BLOCKED**: User must configure Twilio webhook URL in sandbox settings
 - GPS is optional (mocked) for preview environment testing
+- Twilio WhatsApp in sandbox mode — OTP delivery only works for sandbox-joined numbers
 
 ## Upcoming Tasks (Priority Order)
 1. P0: Guide user on Twilio webhook configuration
