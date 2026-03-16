@@ -306,6 +306,39 @@ async def get_vehicles(current_user: dict = Depends(get_current_user)):
     
     return vehicles
 
+@api_router.put("/vehicles/{vehicle_id}/location")
+async def update_vehicle_location(
+    vehicle_id: str,
+    zone_label: Optional[str] = None,
+    gps_latitude: Optional[float] = None,
+    gps_longitude: Optional[float] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update vehicle parking location (used when returning to different spot)"""
+    vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    update_data = {}
+    if zone_label is not None:
+        update_data['zone_label'] = zone_label
+    if gps_latitude is not None:
+        update_data['gps_latitude'] = gps_latitude
+    if gps_longitude is not None:
+        update_data['gps_longitude'] = gps_longitude
+    
+    await db.vehicles.update_one(
+        {"id": vehicle_id},
+        {"$set": update_data}
+    )
+    
+    # Send WhatsApp notification about new location
+    if zone_label:
+        message = f"🔄 Your vehicle has been moved to a new location:\n\n📍 {zone_label}\n\nThis spot is closer/better for pickup!"
+        await send_whatsapp_message(vehicle['phone_number'], message)
+    
+    return {"message": "Location updated", "vehicle_id": vehicle_id}
+
 @api_router.post("/tickets")
 async def create_ticket(vehicle_id: str, current_user: dict = Depends(get_current_user)):
     vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})

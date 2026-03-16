@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function TicketDetail() {
@@ -12,6 +14,13 @@ export default function TicketDetail() {
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timer, setTimer] = useState(null);
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnLocation, setReturnLocation] = useState({
+    zone_label: '',
+    gps_latitude: null,
+    gps_longitude: null
+  });
+  const [gettingLocation, setGettingLocation] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,6 +73,50 @@ export default function TicketDetail() {
     }
   };
 
+  const captureLocation = () => {
+    setGettingLocation(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setReturnLocation({
+            ...returnLocation,
+            gps_latitude: position.coords.latitude,
+            gps_longitude: position.coords.longitude
+          });
+          toast.success('Location captured!');
+          setGettingLocation(false);
+        },
+        (error) => {
+          toast.error('Failed to get location');
+          setGettingLocation(false);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      toast.error('Geolocation not supported');
+      setGettingLocation(false);
+    }
+  };
+
+  const handleReturnToPark = async () => {
+    try {
+      // Update vehicle location
+      await axios.put(`${API}/vehicles/${ticket.vehicle_id}/location`, {
+        zone_label: returnLocation.zone_label,
+        gps_latitude: returnLocation.gps_latitude || 0,
+        gps_longitude: returnLocation.gps_longitude || 0
+      });
+
+      // Update ticket status
+      await axios.put(`${API}/tickets/${ticketId}/status?status=returned`);
+      
+      toast.success('Vehicle returned to new location!');
+      setTimeout(() => navigate('/'), 1500);
+    } catch (error) {
+      toast.error('Failed to update location');
+    }
+  };
+
   const formatTimer = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -80,7 +133,6 @@ export default function TicketDetail() {
 
   const statusSteps = [
     { key: 'claimed', label: 'Claimed' },
-    { key: 'en_route', label: 'En Route' },
     { key: 'arrived', label: 'Arrived' },
     { key: 'completed', label: 'Completed' }
   ];
@@ -218,27 +270,17 @@ export default function TicketDetail() {
         </div>
 
         <div className="space-y-3">
-          {ticket.status === 'claimed' && (
-            <Button
-              data-testid="en-route-button"
-              onClick={() => updateStatus('en_route')}
-              className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-500/50"
-            >
-              I'M EN ROUTE
-            </Button>
-          )}
-
-          {ticket.status === 'en_route' && (
+          {ticket.status === 'claimed' && !showReturnForm && (
             <Button
               data-testid="arrived-button"
               onClick={() => updateStatus('arrived')}
               className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-500/50"
             >
-              I'VE ARRIVED
+              🚗 I'VE ARRIVED WITH CAR
             </Button>
           )}
 
-          {ticket.status === 'arrived' && (
+          {ticket.status === 'arrived' && !showReturnForm && (
             <>
               <Button
                 data-testid="handover-button"
@@ -249,13 +291,85 @@ export default function TicketDetail() {
               </Button>
               <Button
                 data-testid="return-button"
-                onClick={() => updateStatus('returned')}
+                onClick={() => setShowReturnForm(true)}
                 variant="outline"
-                className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-amber-700 text-amber-300 hover:bg-amber-950/20 hover:text-amber-200"
               >
-                RETURN TO PARK
+                🔄 RETURN TO DIFFERENT SPOT
               </Button>
             </>
+          )}
+
+          {showReturnForm && (
+            <Card className="bg-zinc-900/50 backdrop-blur-md border border-amber-800 p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-amber-400 uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                  Return to New Location
+                </h3>
+                <Button
+                  onClick={() => setShowReturnForm(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-zinc-400 hover:text-white"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
+                  GPS Location (Optional)
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={captureLocation}
+                    disabled={gettingLocation}
+                    className="flex-1 h-12 rounded-lg font-medium transition-all active:scale-95 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
+                  >
+                    <Navigation className="w-4 h-4 mr-2" />
+                    {gettingLocation ? 'Getting...' : returnLocation.gps_latitude ? '✅ Captured' : 'Capture GPS'}
+                  </Button>
+                  {!returnLocation.gps_latitude && (
+                    <Button
+                      type="button"
+                      onClick={() => setReturnLocation({ ...returnLocation, gps_latitude: 0, gps_longitude: 0 })}
+                      className="h-12 px-4 rounded-lg font-medium transition-all active:scale-95 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-700"
+                    >
+                      Skip
+                    </Button>
+                  )}
+                </div>
+                {returnLocation.gps_latitude && returnLocation.gps_latitude !== 0 && (
+                  <p className="text-xs text-emerald-400 mt-2">
+                    📍 {returnLocation.gps_latitude.toFixed(6)}, {returnLocation.gps_longitude.toFixed(6)}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="return-zone" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
+                  New Landmark / Zone
+                </Label>
+                <Input
+                  id="return-zone"
+                  type="text"
+                  value={returnLocation.zone_label}
+                  onChange={(e) => setReturnLocation({ ...returnLocation, zone_label: e.target.value })}
+                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  placeholder="Level 1, Section A (Closer spot)"
+                  required
+                />
+              </div>
+
+              <Button
+                onClick={handleReturnToPark}
+                disabled={!returnLocation.zone_label}
+                className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-500/50"
+              >
+                🔄 PARK AT NEW LOCATION
+              </Button>
+            </Card>
           )}
         </div>
       </div>
