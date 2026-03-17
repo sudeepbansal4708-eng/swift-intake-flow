@@ -15,6 +15,7 @@ export default function Login({ setIsAuthenticated }) {
   const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [devOtp, setDevOtp] = useState('');
   const navigate = useNavigate();
 
   const handleSuperAdminLogin = async (e) => {
@@ -40,7 +41,10 @@ export default function Login({ setIsAuthenticated }) {
     try {
       let phone = otpPhone.trim();
       if (!phone.startsWith('+')) phone = '+' + phone;
-      await axios.post(`${API}/auth/otp/request`, { phone_number: phone });
+      const res = await axios.post(`${API}/auth/otp/request`, { phone_number: phone });
+      if (res.data.dev_otp) {
+        setDevOtp(res.data.dev_otp);
+      }
       toast.success('OTP sent to your WhatsApp!');
       setMode('otp-verify');
     } catch (error) {
@@ -73,6 +77,7 @@ export default function Login({ setIsAuthenticated }) {
     if (mode === 'otp-verify') setMode('otp-phone');
     else setMode('choose');
     setOtpCode('');
+    setDevOtp('');
   };
 
   return (
@@ -211,6 +216,12 @@ export default function Login({ setIsAuthenticated }) {
             <p className="text-sm text-zinc-400 mb-4">
               A 6-digit code was sent to <span className="text-white font-medium">{otpPhone}</span> via WhatsApp.
             </p>
+            {devOtp && (
+              <div data-testid="dev-otp-display" className="mb-4 p-3 rounded-lg bg-amber-950/30 border border-amber-700/40">
+                <div className="text-[10px] text-amber-500/80 uppercase tracking-widest mb-1">Dev Mode — Your OTP</div>
+                <div className="text-2xl font-mono font-bold text-amber-400 tracking-[0.3em] text-center">{devOtp}</div>
+              </div>
+            )}
             <form onSubmit={handleVerifyOTP} className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">OTP Code</Label>

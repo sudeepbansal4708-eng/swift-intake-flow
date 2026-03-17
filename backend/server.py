@@ -323,7 +323,12 @@ async def request_otp(data: OTPRequest):
     whatsapp_result = await send_whatsapp_message(phone, message)
     logging.info(f"OTP sent to {phone}: result={whatsapp_result}")
 
-    return {"message": "OTP sent to your WhatsApp", "phone_number": phone}
+    # Include OTP in response for dev/testing (WhatsApp not yet configured)
+    whatsapp_working = whatsapp_result.get('status') == 'sent'
+    response = {"message": "OTP sent to your WhatsApp", "phone_number": phone}
+    if not whatsapp_working:
+        response["dev_otp"] = otp
+    return response
 
 @api_router.post("/auth/otp/verify")
 async def verify_otp(data: OTPVerify):
