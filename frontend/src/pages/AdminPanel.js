@@ -266,9 +266,9 @@ export default function AdminPanel() {
         <Collapsible open={teamOpen} onOpenChange={setTeamOpen}>
           <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800">
             <CollapsibleTrigger asChild>
-              <button
+              <div
                 data-testid="toggle-team-section"
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-800/30 transition-colors rounded-lg"
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-800/30 transition-colors rounded-lg cursor-pointer"
               >
                 <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
                   Team Management
@@ -284,7 +284,7 @@ export default function AdminPanel() {
                   </Button>
                   <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${teamOpen ? 'rotate-180' : ''}`} />
                 </div>
-              </button>
+              </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="px-4 pb-4 space-y-3">
