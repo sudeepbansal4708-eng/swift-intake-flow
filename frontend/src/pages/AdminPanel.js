@@ -6,8 +6,9 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 
 export default function AdminPanel() {
   const [valets, setValets] = useState([]);
@@ -21,6 +22,8 @@ export default function AdminPanel() {
   const [formData, setFormData] = useState({ email: '', name: '', phone_number: '', driver_license_number: '' });
   const [profileData, setProfileData] = useState({ name: '', client_name: '' });
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(true);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -201,66 +204,91 @@ export default function AdminPanel() {
           </Card>
         </div>
 
-        {/* Profile Editor */}
-        <Card data-testid="admin-profile-card" className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <UserCog className="w-5 h-5 text-violet-400" />
-            <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-              My Profile
-            </h2>
-          </div>
-          <form onSubmit={handleSaveProfile} className="space-y-3">
-            <div>
-              <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Your Name</Label>
-              <Input
-                data-testid="admin-profile-name"
-                type="text"
-                value={profileData.name}
-                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
-                placeholder="Your full name"
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Client / Business Name</Label>
-              <Input
-                data-testid="admin-profile-client-name"
-                type="text"
-                value={profileData.client_name}
-                onChange={(e) => setProfileData({ ...profileData, client_name: e.target.value })}
-                className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
-                placeholder="e.g. The Grand Restaurant"
-              />
-              <p className="text-xs text-zinc-500 mt-1">This name appears in WhatsApp messages sent to customers.</p>
-            </div>
-            <Button
-              data-testid="admin-profile-save-btn"
-              type="submit"
-              disabled={profileLoading}
-              className="w-full h-11 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {profileLoading ? 'Saving...' : 'Save Profile'}
-            </Button>
-          </form>
-        </Card>
+        {/* Profile Editor - Collapsible */}
+        <Collapsible open={profileOpen} onOpenChange={setProfileOpen}>
+          <Card data-testid="admin-profile-card" className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800">
+            <CollapsibleTrigger asChild>
+              <button
+                data-testid="toggle-profile-section"
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-800/30 transition-colors rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <UserCog className="w-5 h-5 text-violet-400" />
+                  <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                    My Profile
+                  </h2>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-4">
+                <form onSubmit={handleSaveProfile} className="space-y-3">
+                  <div>
+                    <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Your Name</Label>
+                    <Input
+                      data-testid="admin-profile-name"
+                      type="text"
+                      value={profileData.name}
+                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                      className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                      placeholder="Your full name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Client / Business Name</Label>
+                    <Input
+                      data-testid="admin-profile-client-name"
+                      type="text"
+                      value={profileData.client_name}
+                      onChange={(e) => setProfileData({ ...profileData, client_name: e.target.value })}
+                      className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                      placeholder="e.g. The Grand Restaurant"
+                    />
+                    <p className="text-xs text-zinc-500 mt-1">This name appears in WhatsApp messages sent to customers.</p>
+                  </div>
+                  <Button
+                    data-testid="admin-profile-save-btn"
+                    type="submit"
+                    disabled={profileLoading}
+                    className="w-full h-11 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {profileLoading ? 'Saving...' : 'Save Profile'}
+                  </Button>
+                </form>
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
-        <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-              Team Management
-            </h2>
-            <Button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="h-10 px-4 rounded-lg font-medium bg-blue-600 hover:bg-blue-500"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Valet
-            </Button>
-          </div>
-        </Card>
-
-        {showAddForm && (
+        {/* Team Management - Collapsible */}
+        <Collapsible open={teamOpen} onOpenChange={setTeamOpen}>
+          <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800">
+            <CollapsibleTrigger asChild>
+              <button
+                data-testid="toggle-team-section"
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-800/30 transition-colors rounded-lg"
+              >
+                <h2 className="text-lg font-semibold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                  Team Management
+                </h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    data-testid="add-valet-btn"
+                    onClick={(e) => { e.stopPropagation(); setShowAddForm(!showAddForm); setTeamOpen(true); }}
+                    className="h-8 px-3 rounded-lg font-medium text-xs bg-blue-600 hover:bg-blue-500"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Add Valet
+                  </Button>
+                  <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${teamOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-4 space-y-3">
+                {showAddForm && (
           <Card className="bg-zinc-950/50 border border-blue-800 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-blue-400 uppercase" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
@@ -351,52 +379,57 @@ export default function AdminPanel() {
           </Card>
         )}
 
-        <div className="space-y-2">
-          {valets.map((valet) => (
-            <Card key={valet.id} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="font-medium text-white">{valet.name}</div>
-                  <div className="text-sm text-zinc-400">{valet.email}</div>
-                  {valet.phone_number && (
-                    <div className="text-sm text-zinc-500">{valet.phone_number}</div>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border">
-                      <span className={valet.role === 'admin' ? 'text-amber-400' : 'text-blue-400'}>
-                        {valet.role.toUpperCase()}
-                      </span>
+                {valets.filter(v => v.role !== 'admin').map((valet) => (
+                  <Card key={valet.id} data-testid={`valet-card-${valet.id}`} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-white">{valet.name}</div>
+                        <div className="text-sm text-zinc-400">{valet.email}</div>
+                        {valet.phone_number && (
+                          <div className="text-sm text-zinc-500">{valet.phone_number}</div>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-zinc-700">
+                            <span className="text-blue-400">{valet.role.toUpperCase()}</span>
+                          </div>
+                          {valet.driver_license_number && (
+                            <Button
+                              onClick={() => viewLicense(valet)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                            >
+                              <IdCard className="w-3 h-3 mr-1" />
+                              License: {valet.driver_license_number}
+                            </Button>
+                          )}
+                        </div>
+                        {valet.is_active === false && (
+                          <span className="inline-block mt-1 text-xs text-red-400 px-2 py-0.5 bg-red-950/20 border border-red-900/50 rounded">(Inactive)</span>
+                        )}
+                      </div>
+                      {valet.is_active !== false && (
+                        <Button
+                          data-testid={`delete-valet-${valet.id}`}
+                          onClick={() => deleteValet(valet.id)}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
-                    {valet.driver_license_number && (
-                      <Button
-                        onClick={() => viewLicense(valet)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs text-emerald-400 hover:text-emerald-300"
-                      >
-                        <IdCard className="w-3 h-3 mr-1" />
-                        License: {valet.driver_license_number}
-                      </Button>
-                    )}
-                  </div>
-                  {valet.is_active === false && (
-                    <span className="inline-block mt-1 text-xs text-red-400">(Inactive)</span>
-                  )}
-                </div>
-                {valet.is_active !== false && valet.role !== 'admin' && (
-                  <Button
-                    onClick={() => deleteValet(valet.id)}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-red-400 hover:text-red-300"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  </Card>
+                ))}
+
+                {valets.filter(v => v.role !== 'admin').length === 0 && (
+                  <div className="text-center py-6 text-zinc-500 text-sm">No valet drivers yet</div>
                 )}
               </div>
-            </Card>
-          ))}
-        </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
 
       {showLicenseModal && selectedValet && (
