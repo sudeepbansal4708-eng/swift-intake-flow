@@ -17,6 +17,7 @@ export default function SuperAdminPanel() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientReport, setClientReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [formData, setFormData] = useState({
     email: '',
     phone_number: '',
@@ -62,7 +63,11 @@ export default function SuperAdminPanel() {
 
   const deleteAdmin = async (adminId, e) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to deactivate this admin?')) return;
+    if (confirmDelete !== adminId) {
+      setConfirmDelete(adminId);
+      return;
+    }
+    setConfirmDelete(null);
     try {
       await axios.delete(`${API}/super-admin/admins/${adminId}`);
       toast.success('Admin deactivated');
@@ -244,15 +249,35 @@ export default function SuperAdminPanel() {
                   <div className="flex items-center gap-1">
                     {admin.is_active !== false && (
                       <>
-                        <Button
-                          data-testid={`delete-admin-${admin.id}`}
-                          onClick={(e) => deleteAdmin(admin.id, e)}
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {confirmDelete === admin.id ? (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              data-testid={`confirm-delete-${admin.id}`}
+                              onClick={(e) => deleteAdmin(admin.id, e)}
+                              className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              data-testid={`cancel-delete-${admin.id}`}
+                              onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
+                              variant="ghost"
+                              className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            data-testid={`delete-admin-${admin.id}`}
+                            onClick={(e) => deleteAdmin(admin.id, e)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                         <ChevronRight className="w-4 h-4 text-zinc-600" />
                       </>
                     )}

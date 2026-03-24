@@ -16,6 +16,7 @@ export default function AdminPanel() {
   const [tips, setTips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [selectedValet, setSelectedValet] = useState(null);
   const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
@@ -100,8 +101,11 @@ export default function AdminPanel() {
   };
 
   const deleteValet = async (valetId) => {
-    if (!window.confirm('Are you sure you want to deactivate this valet?')) return;
-    
+    if (confirmDelete !== valetId) {
+      setConfirmDelete(valetId);
+      return;
+    }
+    setConfirmDelete(null);
     try {
       await axios.delete(`${API}/admin/valets/${valetId}`);
       toast.success('Valet deactivated');
@@ -409,15 +413,35 @@ export default function AdminPanel() {
                         )}
                       </div>
                       {valet.is_active !== false && (
-                        <Button
-                          data-testid={`delete-valet-${valet.id}`}
-                          onClick={() => deleteValet(valet.id)}
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        confirmDelete === valet.id ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              data-testid={`confirm-delete-valet-${valet.id}`}
+                              onClick={() => deleteValet(valet.id)}
+                              className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              data-testid={`cancel-delete-valet-${valet.id}`}
+                              onClick={() => setConfirmDelete(null)}
+                              variant="ghost"
+                              className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            data-testid={`delete-valet-${valet.id}`}
+                            onClick={() => deleteValet(valet.id)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )
                       )}
                     </div>
                   </Card>
