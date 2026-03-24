@@ -205,7 +205,7 @@ async def send_whatsapp_message(phone_number: str, message: str):
         to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
         from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
         
-        logging.info(f"📱 Attempting to send WhatsApp message...")
+        logging.info("📱 Attempting to send WhatsApp message...")
         logging.info(f"   From: {from_whatsapp}")
         logging.info(f"   To: {to_whatsapp}")
         logging.info(f"   Message preview: {message[:50]}...")
@@ -217,7 +217,7 @@ async def send_whatsapp_message(phone_number: str, message: str):
             to=to_whatsapp
         )
         
-        logging.info(f"✅ WhatsApp message sent successfully!")
+        logging.info("✅ WhatsApp message sent successfully!")
         logging.info(f"   Message SID: {twilio_message.sid}")
         logging.info(f"   Status: {twilio_message.status}")
         
@@ -291,7 +291,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "name": current_user['name'],
         "role": current_user['role'],
         "client_name": current_user.get('client_name'),
-        "client_id": current_user.get('client_id')
+        "client_id": current_user.get('client_id'),
+        "profile_photo": current_user.get('profile_photo')
     }
 
 @api_router.post("/auth/otp/request")
@@ -544,7 +545,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     
     elif status == "arrived":
         update_data['arrived_at'] = datetime.now(timezone.utc).isoformat()
-        message = f"✅ Your car is at the entrance! We can hold it for 5 minutes."
+        message = "✅ Your car is at the entrance! We can hold it for 5 minutes."
         await send_whatsapp_message(ticket['customer_phone'], message)
     
     elif status == "completed":
@@ -556,7 +557,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
                 payment_link = razorpay_client.payment_link.create({
                     "amount": 500,
                     "currency": "INR",
-                    "description": f"Tip for Valet Service",
+                    "description": "Tip for Valet Service",
                     "customer": {
                         "contact": ticket['customer_phone']
                     },
@@ -571,9 +572,9 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
                 message = f"🎉 Thank you for using SwiftValet!\n\nIf you'd like to tip your valet, you can do so here:\n{payment_link['short_url']}\n\nPreset amounts: ₹50, ₹100, ₹200 or custom."
             except Exception as e:
                 logging.error(f"Razorpay error: {str(e)}")
-                message = f"🎉 Thank you for using SwiftValet! Your feedback means a lot to us."
+                message = "🎉 Thank you for using SwiftValet! Your feedback means a lot to us."
         else:
-            message = f"🎉 Thank you for using SwiftValet!"
+            message = "🎉 Thank you for using SwiftValet!"
         
         await send_whatsapp_message(ticket['customer_phone'], message)
     
@@ -630,6 +631,97 @@ async def update_admin_profile(
         )
     
     return {"message": "Profile updated successfully", "name": name, "client_name": client_name}
+
+@api_router.post("/admin/profile/photo")
+async def upload_profile_photo(
+    photo: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload admin profile photo"""
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    photo_data = await photo.read()
+    photo_base64 = base64.b64encode(photo_data).decode('utf-8')
+    photo_url = f"data:{photo.content_type};base64,{photo_base64}"
+
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": {"profile_photo": photo_url}}
+    )
+
+    return {"message": "Profile photo updated", "profile_photo": photo_url}
+
+@api_router.get("/admin/dashboard-stats")
+async def get_admin_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    """Get admin dashboard card details"""
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    client_id = current_user.get('client_id')
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Active valets with details
+    active_valets = await db.users.find(
+        {"client_id": client_id, "role": "valet", "is_active": True},
+        {"_id": 0, "id": 1, "name": 1, "phone_number": 1, "email": 1, "driver_license_number": 1}
+    ).to_list(500)
+
+    # Get valet IDs
+    valet_ids = [v['id'] for v in active_valets]
+
+    # Parked vehicles (today, by this client's valets)
+    parked_vehicles = []
+    if valet_ids:
+        vehicles = await db.vehicles.find(
+            {"parked_by": {"$in": valet_ids}, "parked_at": {"$gte": today_start}},
+            {"_id": 0}
+        ).to_list(5000)
+
+        # Get valet name map
+        valet_name_map = {v['id']: v['name'] for v in active_valets}
+
+        for v in vehicles:
+            parked_vehicles.append({
+                "id": v.get('id'),
+                "license_plate": v.get('license_plate'),
+                "phone_number": v.get('phone_number'),
+                "tag_number": v.get('tag_number'),
+                "zone_label": v.get('zone_label', ''),
+                "parked_at": v.get('parked_at'),
+                "parked_by_name": valet_name_map.get(v.get('parked_by'), 'Unknown'),
+            })
+
+    # Tips today (placeholder)
+    tips_today = await db.tips.find(
+        {"created_at": {"$gte": today_start}},
+        {"_id": 0}
+    ).to_list(5000)
+
+    tip_breakdown = []
+    for t in tips_today:
+        valet_name = "Unknown"
+        if t.get('valet_id'):
+            valet = await db.users.find_one({"id": t['valet_id']}, {"_id": 0, "name": 1})
+            if valet:
+                valet_name = valet.get('name', 'Unknown')
+        tip_breakdown.append({
+            "amount": t.get('amount', 0),
+            "status": t.get('status', 'pending'),
+            "valet_name": valet_name,
+            "created_at": t.get('created_at', ''),
+        })
+
+    return {
+        "active_valets": active_valets,
+        "parked_vehicles": parked_vehicles,
+        "tips": tip_breakdown,
+        "totals": {
+            "valets": len(active_valets),
+            "vehicles": len(parked_vehicles),
+            "tips_amount": sum(t.get('amount', 0) for t in tips_today),
+        }
+    }
 
 @api_router.post("/admin/valets")
 async def create_valet(valet_data: ValetCreate, current_user: dict = Depends(get_current_user)):
@@ -878,10 +970,6 @@ async def get_client_report(client_id: str, current_user: dict = Depends(get_cur
         ).to_list(5000)
         client_vehicle_ids = [v['id'] for v in vehicles_by_client]
         if client_vehicle_ids:
-            active_count = await db.tickets.count_documents({
-                "vehicle_id": {"$in": client_vehicle_ids},
-                "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
-            })
             # "now" = parked today minus completed today
             completed_today = await db.tickets.count_documents({
                 "vehicle_id": {"$in": client_vehicle_ids},
