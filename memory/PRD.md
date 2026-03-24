@@ -38,6 +38,11 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
   - Valets and client admins receive push notifications on every retrieval request
   - Endpoints: POST /api/push/subscribe, POST /api/push/unsubscribe, GET /api/push/vapid-key
   - Subscription storage in MongoDB push_subscriptions collection
+- **FAB with Park/Retrieve Options** (NEW - Mar 24, 2026):
+  - Replaced single "+" button with expandable FAB showing Park and Retrieve options
+  - Park: navigates to /intake (existing parking workflow)
+  - Retrieve: opens modal to enter customer phone, lookup vehicle, and auto-assign retrieval ticket to initiating valet
+  - Endpoints: POST /api/tickets/retrieve, GET /api/vehicles/lookup
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
@@ -46,7 +51,7 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 - `/api/admin/profile` (PUT), `/api/admin/profile/photo` (POST)
 - `/api/admin/reporting`, `/api/admin/reporting/export`
 - `/api/super-admin/clients/{client_id}/report`
-- `/api/vehicles`, `/api/tickets`, `/api/admin/valets`, `/api/admin/tips`
+- `/api/vehicles`, `/api/vehicles/lookup`, `/api/tickets`, `/api/tickets/retrieve`, `/api/admin/valets`, `/api/admin/tips`
 - `/api/push/subscribe`, `/api/push/unsubscribe`, `/api/push/vapid-key`
 
 ## Tech Stack
