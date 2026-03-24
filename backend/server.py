@@ -843,16 +843,70 @@ async def delete_admin(admin_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Admin not found")
     
     return {"message": "Admin deactivated"}
-    
-    result = await db.users.update_one(
-        {"id": valet_id},
-        {"$set": {"is_active": False}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Valet not found")
-    
-    return {"message": "Valet deactivated"}
+
+@api_router.get("/super-admin/clients/{client_id}/report")
+async def get_client_report(client_id: str, current_user: dict = Depends(get_current_user)):
+    """Get per-client report for super admin"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    admin = await db.users.find_one({"client_id": client_id, "role": "admin"}, {"_id": 0})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_iso = today_start.isoformat()
+
+    # Number of active drivers
+    num_drivers = await db.users.count_documents({"client_id": client_id, "role": "valet", "is_active": True})
+
+    # Get all valet IDs for this client
+    valets = await db.users.find({"client_id": client_id, "role": "valet"}, {"_id": 0, "id": 1}).to_list(500)
+    valet_ids = [v['id'] for v in valets]
+
+    # Cars parked today by these valets
+    cars_parked_today = 0
+    if valet_ids:
+        cars_parked_today = await db.vehicles.count_documents({
+            "parked_by": {"$in": valet_ids},
+            "parked_at": {"$gte": today_iso}
+        })
+
+    # Cars parked now (vehicles with active tickets, parked by this client's valets)
+    cars_parked_now = 0
+    if valet_ids:
+        vehicles_by_client = await db.vehicles.find(
+            {"parked_by": {"$in": valet_ids}},
+            {"_id": 0, "id": 1}
+        ).to_list(5000)
+        client_vehicle_ids = [v['id'] for v in vehicles_by_client]
+        if client_vehicle_ids:
+            active_count = await db.tickets.count_documents({
+                "vehicle_id": {"$in": client_vehicle_ids},
+                "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+            })
+            # "now" = parked today minus completed today
+            completed_today = await db.tickets.count_documents({
+                "vehicle_id": {"$in": client_vehicle_ids},
+                "status": "completed",
+                "completed_at": {"$gte": today_iso}
+            })
+            cars_parked_now = cars_parked_today - completed_today
+            if cars_parked_now < 0:
+                cars_parked_now = 0
+
+    # Tips today (placeholder)
+    tips_today = 0
+
+    return {
+        "client_id": client_id,
+        "client_name": admin.get('client_name', 'Unknown'),
+        "admin_name": admin.get('name', 'Unknown'),
+        "num_drivers": num_drivers,
+        "cars_parked_now": cars_parked_now,
+        "cars_parked_today": cars_parked_today,
+        "tips_today": tips_today,
+    }
 
 @api_router.get("/admin/tips")
 async def get_tips(current_user: dict = Depends(get_current_user)):

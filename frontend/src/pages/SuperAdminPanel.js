@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SuperAdminPanel() {
@@ -14,6 +14,9 @@ export default function SuperAdminPanel() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [clientReport, setClientReport] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     phone_number: '',
@@ -57,15 +60,34 @@ export default function SuperAdminPanel() {
     }
   };
 
-  const deleteAdmin = async (adminId) => {
+  const deleteAdmin = async (adminId, e) => {
+    e.stopPropagation();
     if (!window.confirm('Are you sure you want to deactivate this admin?')) return;
-    
     try {
       await axios.delete(`${API}/super-admin/admins/${adminId}`);
       toast.success('Admin deactivated');
       fetchData();
+      if (selectedClient?.id === adminId) {
+        setSelectedClient(null);
+        setClientReport(null);
+      }
     } catch (error) {
       toast.error('Failed to deactivate admin');
+    }
+  };
+
+  const openClientReport = async (admin) => {
+    if (!admin.client_id) return;
+    setSelectedClient(admin);
+    setReportLoading(true);
+    setClientReport(null);
+    try {
+      const res = await axios.get(`${API}/super-admin/clients/${admin.client_id}/report`);
+      setClientReport(res.data);
+    } catch {
+      toast.error('Failed to load client report');
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -109,19 +131,16 @@ export default function SuperAdminPanel() {
               <div className="text-3xl font-bold text-white">{analytics.total_clients}</div>
               <div className="text-xs text-amber-400 uppercase tracking-wider">Total Clients</div>
             </Card>
-
             <Card className="bg-gradient-to-br from-blue-950/30 to-zinc-900/50 backdrop-blur-md border border-blue-800/50 p-4">
               <Car className="w-6 h-6 text-blue-400 mb-2" />
               <div className="text-3xl font-bold text-white">{analytics.cars_parked_now}</div>
               <div className="text-xs text-blue-400 uppercase tracking-wider">Cars Parked Now</div>
             </Card>
-
             <Card className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4">
               <DollarSign className="w-6 h-6 text-emerald-400 mb-2" />
               <div className="text-3xl font-bold text-white">₹{analytics.total_tips_today}</div>
               <div className="text-xs text-emerald-400 uppercase tracking-wider">Tips Today</div>
             </Card>
-
             <Card className="bg-gradient-to-br from-purple-950/30 to-zinc-900/50 backdrop-blur-md border border-purple-800/50 p-4">
               <TrendingUp className="w-6 h-6 text-purple-400 mb-2" />
               <div className="text-3xl font-bold text-white">{analytics.tickets_today}</div>
@@ -152,81 +171,28 @@ export default function SuperAdminPanel() {
                 <h3 className="font-semibold text-amber-400 uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
                   Create New Client Admin
                 </h3>
-                <Button
-                  onClick={() => setShowAddForm(false)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-zinc-400 hover:text-white"
-                >
+                <Button onClick={() => setShowAddForm(false)} variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 <div>
-                  <Label htmlFor="client_name" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                    Client/Business Name
-                  </Label>
-                  <Input
-                    id="client_name"
-                    type="text"
-                    value={formData.client_name}
-                    onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-                    className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500"
-                    placeholder="Acme Valet Services"
-                    required
-                  />
+                  <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Client/Business Name</Label>
+                  <Input type="text" value={formData.client_name} onChange={(e) => setFormData({ ...formData, client_name: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="Acme Valet Services" required />
                 </div>
-
                 <div>
-                  <Label htmlFor="name" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                    Admin Name
-                  </Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500"
-                    placeholder="John Doe"
-                    required
-                  />
+                  <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Admin Name</Label>
+                  <Input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="John Doe" required />
                 </div>
-
                 <div>
-                  <Label htmlFor="email" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500"
-                    placeholder="admin@acme.com"
-                    required
-                  />
+                  <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Email</Label>
+                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="admin@acme.com" required />
                 </div>
-
                 <div>
-                  <Label htmlFor="phone_number" className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">
-                    Phone Number (for OTP Login)
-                  </Label>
-                  <Input
-                    id="phone_number"
-                    type="tel"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500"
-                    placeholder="+91 9876543210"
-                    required
-                  />
+                  <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Phone Number (for OTP Login)</Label>
+                  <Input type="tel" value={formData.phone_number} onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="+91 9876543210" required />
                 </div>
-
-                <Button
-                  type="submit"
-                  className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-amber-600 hover:bg-amber-500 text-white"
-                >
+                <Button type="submit" className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-amber-600 hover:bg-amber-500 text-white">
                   Create Admin
                 </Button>
               </form>
@@ -243,7 +209,8 @@ export default function SuperAdminPanel() {
               <Card
                 key={admin.id}
                 data-testid={`admin-${admin.id}`}
-                className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
+                onClick={() => admin.is_active !== false && openClientReport(admin)}
+                className={`bg-zinc-900/50 backdrop-blur-md border p-4 transition-colors ${admin.is_active !== false ? 'border-zinc-800 hover:border-zinc-600 cursor-pointer active:scale-[0.98]' : 'border-zinc-800/50 opacity-60'}`}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -256,7 +223,6 @@ export default function SuperAdminPanel() {
                     {admin.phone_number && (
                       <div className="text-xs text-zinc-500">{admin.phone_number}</div>
                     )}
-                    
                     {admin.stats && (
                       <div className="flex gap-4 mt-2">
                         <div className="text-xs">
@@ -269,25 +235,28 @@ export default function SuperAdminPanel() {
                         </div>
                       </div>
                     )}
-                    
                     {admin.is_active === false && (
                       <span className="inline-block mt-2 text-xs text-red-400 px-2 py-0.5 bg-red-950/20 border border-red-900/50 rounded">
                         Inactive
                       </span>
                     )}
                   </div>
-                  
-                  {admin.is_active !== false && (
-                    <Button
-                      data-testid={`delete-admin-${admin.id}`}
-                      onClick={() => deleteAdmin(admin.id)}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {admin.is_active !== false && (
+                      <>
+                        <Button
+                          data-testid={`delete-admin-${admin.id}`}
+                          onClick={(e) => deleteAdmin(admin.id, e)}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        <ChevronRight className="w-4 h-4 text-zinc-600" />
+                      </>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -302,6 +271,67 @@ export default function SuperAdminPanel() {
           </div>
         </div>
       </div>
+
+      {/* Client Report Modal */}
+      {selectedClient && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setSelectedClient(null); setClientReport(null); }}>
+          <Card
+            data-testid="client-report-modal"
+            className="bg-zinc-900 border border-zinc-700 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <div>
+                <h3 className="font-bold text-white text-lg uppercase" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                  {selectedClient.client_name || 'Client Report'}
+                </h3>
+                <p className="text-xs text-zinc-500">Admin: {selectedClient.name}</p>
+              </div>
+              <Button
+                data-testid="close-report-modal"
+                onClick={() => { setSelectedClient(null); setClientReport(null); }}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {reportLoading ? (
+              <div className="p-8 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
+              </div>
+            ) : clientReport ? (
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Card data-testid="report-num-drivers" className="bg-zinc-800/50 border border-zinc-700 p-4">
+                    <Users className="w-5 h-5 text-blue-400 mb-1.5" />
+                    <div className="text-2xl font-bold text-white">{clientReport.num_drivers}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Drivers</div>
+                  </Card>
+                  <Card data-testid="report-cars-parked-now" className="bg-zinc-800/50 border border-zinc-700 p-4">
+                    <Car className="w-5 h-5 text-emerald-400 mb-1.5" />
+                    <div className="text-2xl font-bold text-white">{clientReport.cars_parked_now}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Parked Now</div>
+                  </Card>
+                  <Card data-testid="report-tips-today" className="bg-zinc-800/50 border border-zinc-700 p-4">
+                    <DollarSign className="w-5 h-5 text-amber-400 mb-1.5" />
+                    <div className="text-2xl font-bold text-white">₹{clientReport.tips_today}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Tips Today</div>
+                  </Card>
+                  <Card data-testid="report-cars-parked-today" className="bg-zinc-800/50 border border-zinc-700 p-4">
+                    <TrendingUp className="w-5 h-5 text-violet-400 mb-1.5" />
+                    <div className="text-2xl font-bold text-white">{clientReport.cars_parked_today}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Parked Today</div>
+                  </Card>
+                </div>
+                <p className="text-[10px] text-zinc-600 italic text-center pt-1">Tip data is placeholder — will populate once payments are live.</p>
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
