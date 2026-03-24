@@ -115,7 +115,7 @@ Once logged in to Twilio Console:
 ### Option B: Test via API
 
 ```bash
-API_URL="https://swift-valet-preview-1.preview.emergentagent.com"
+API_URL="https://swift-intake-flow.preview.emergentagent.com"
 
 # Login
 TOKEN=$(curl -s -X POST "$API_URL/api/auth/login" \
@@ -329,7 +329,7 @@ tail -f /var/log/supervisor/backend.out.log
 
 **Test Endpoint:**
 ```bash
-curl https://swift-valet-preview-1.preview.emergentagent.com/api/
+curl https://swift-intake-flow.preview.emergentagent.com/api/
 # Should return: {"message": "Hello World"}
 ```
 

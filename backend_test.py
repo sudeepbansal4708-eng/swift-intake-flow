@@ -6,7 +6,7 @@ import base64
 import io
 
 class SwiftValetAPITester:
-    def __init__(self, base_url="https://swift-valet-preview-1.preview.emergentagent.com"):
+    def __init__(self, base_url="https://swift-intake-flow.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None

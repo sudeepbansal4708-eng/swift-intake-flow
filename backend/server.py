@@ -16,8 +16,10 @@ from passlib.context import CryptContext
 import razorpay
 import base64
 import httpx
+import json
 from bson import ObjectId
 from twilio.rest import Client as TwilioClient
+from pywebpush import webpush, WebPushException
 
 
 ROOT_DIR = Path(__file__).parent
@@ -52,6 +54,11 @@ if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
     twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 else:
     twilio_client = None
+
+# VAPID push notification config
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@swiftvalet.com')
 
 # Create the main app
 app = FastAPI()
@@ -197,29 +204,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 async def send_whatsapp_message(phone_number: str, message: str):
     """Send WhatsApp message via Twilio API"""
     if not twilio_client or not TWILIO_WHATSAPP_FROM:
-        logging.warning(f"❌ Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
+        logging.warning(f"Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
         return {"status": "not_configured", "message": "Twilio WhatsApp credentials not set"}
     
     try:
-        # Format phone number for WhatsApp (must have whatsapp: prefix for Twilio)
         to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
         from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
         
-        logging.info("📱 Attempting to send WhatsApp message...")
+        logging.info("Attempting to send WhatsApp message...")
         logging.info(f"   From: {from_whatsapp}")
         logging.info(f"   To: {to_whatsapp}")
-        logging.info(f"   Message preview: {message[:50]}...")
         
-        # Send message via Twilio (synchronous call)
         twilio_message = twilio_client.messages.create(
             body=message,
             from_=from_whatsapp,
             to=to_whatsapp
         )
         
-        logging.info("✅ WhatsApp message sent successfully!")
-        logging.info(f"   Message SID: {twilio_message.sid}")
-        logging.info(f"   Status: {twilio_message.status}")
+        logging.info(f"WhatsApp message sent: SID={twilio_message.sid}")
         
         return {
             "status": "sent",
@@ -227,9 +229,73 @@ async def send_whatsapp_message(phone_number: str, message: str):
             "twilio_status": twilio_message.status
         }
     except Exception as e:
-        logging.error(f"❌ Twilio WhatsApp send error: {str(e)}")
-        logging.error(f"   Error type: {type(e).__name__}")
+        logging.error(f"Twilio WhatsApp send error: {str(e)}")
         return {"status": "error", "message": str(e)}
+
+
+async def send_push_notification(user_id: str, title: str, body: str, data: dict = None):
+    """Send push notification to a specific user's subscribed devices"""
+    if not VAPID_PRIVATE_KEY:
+        logging.warning("VAPID keys not configured, skipping push notification")
+        return
+
+    subscriptions = await db.push_subscriptions.find(
+        {"user_id": user_id}, {"_id": 0}
+    ).to_list(50)
+
+    payload = json.dumps({
+        "title": title,
+        "body": body,
+        "data": data or {},
+        "icon": "/favicon.ico",
+        "badge": "/favicon.ico"
+    })
+
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info=sub["subscription"],
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CLAIMS_EMAIL}
+            )
+        except WebPushException as e:
+            logging.warning(f"Push failed for user {user_id}: {e}")
+            if e.response and e.response.status_code in (404, 410):
+                await db.push_subscriptions.delete_one({"_id": sub.get("_id")})
+        except Exception as e:
+            logging.error(f"Push notification error: {e}")
+
+
+async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
+    """Send push notifications to all active valets and admin for a client when retrieval is requested"""
+    parked_by = vehicle.get("parked_by")
+    if not parked_by:
+        return
+
+    parker = await db.users.find_one({"id": parked_by}, {"_id": 0})
+    if not parker:
+        return
+
+    client_id = parker.get("client_id")
+    if not client_id:
+        return
+
+    plate = vehicle.get("license_plate", "Unknown")
+    tag = vehicle.get("tag_number")
+    tag_str = f" (Tag #{tag})" if tag else ""
+    title = "New Retrieval Request"
+    body = f"Car {plate}{tag_str} is ready for pickup!"
+    data = {"type": "retrieval", "ticket_id": ticket_id, "vehicle_id": vehicle.get("id")}
+
+    # Get all active valets + admin for this client
+    team_members = await db.users.find(
+        {"client_id": client_id, "is_active": True, "role": {"$in": ["valet", "admin"]}},
+        {"_id": 0, "id": 1}
+    ).to_list(500)
+
+    for member in team_members:
+        await send_push_notification(member["id"], title, body, data)
 
 # Routes
 @api_router.post("/auth/register")
@@ -467,6 +533,9 @@ async def create_ticket(vehicle_id: str, current_user: dict = Depends(get_curren
     
     await db.tickets.insert_one(doc)
     
+    # Send push notifications to team
+    await notify_team_of_retrieval(vehicle, ticket_obj.id)
+    
     return ticket_obj.model_dump()
 
 @api_router.get("/tickets")
@@ -581,6 +650,85 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
     
     return {"message": "Status updated"}
+
+@api_router.get("/valet/dashboard-stats")
+async def get_valet_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    """Get individual valet dashboard stats"""
+    if current_user['role'] not in ['valet', 'admin']:
+        raise HTTPException(status_code=403, detail="Valet or admin access required")
+
+    valet_id = current_user['id']
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Cars parked today by this valet
+    cars_parked_today = await db.vehicles.count_documents({
+        "parked_by": valet_id,
+        "parked_at": {"$gte": today_start}
+    })
+
+    # Cars retrieved today by this valet (tickets claimed_by this valet and completed today)
+    cars_retrieved_today = await db.tickets.count_documents({
+        "claimed_by": valet_id,
+        "status": "completed",
+        "completed_at": {"$gte": today_start}
+    })
+
+    # Tips today for this valet
+    tips_today = await db.tips.find(
+        {"valet_id": valet_id, "created_at": {"$gte": today_start}},
+        {"_id": 0}
+    ).to_list(500)
+    tips_amount = sum(t.get('amount', 0) for t in tips_today)
+
+    return {
+        "cars_parked_today": cars_parked_today,
+        "cars_retrieved_today": cars_retrieved_today,
+        "tips_today": tips_amount
+    }
+
+
+class PushSubscription(BaseModel):
+    subscription: dict
+
+
+@api_router.post("/push/subscribe")
+async def push_subscribe(data: PushSubscription, current_user: dict = Depends(get_current_user)):
+    """Store a push subscription for the current user"""
+    endpoint = data.subscription.get("endpoint", "")
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="Invalid subscription")
+
+    # Upsert: one subscription per endpoint per user
+    await db.push_subscriptions.update_one(
+        {"user_id": current_user['id'], "subscription.endpoint": endpoint},
+        {"$set": {
+            "user_id": current_user['id'],
+            "subscription": data.subscription,
+            "role": current_user['role'],
+            "client_id": current_user.get('client_id'),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    return {"message": "Subscribed to push notifications"}
+
+
+@api_router.post("/push/unsubscribe")
+async def push_unsubscribe(data: PushSubscription, current_user: dict = Depends(get_current_user)):
+    """Remove a push subscription"""
+    endpoint = data.subscription.get("endpoint", "")
+    await db.push_subscriptions.delete_one({
+        "user_id": current_user['id'],
+        "subscription.endpoint": endpoint
+    })
+    return {"message": "Unsubscribed from push notifications"}
+
+
+@api_router.get("/push/vapid-key")
+async def get_vapid_public_key():
+    """Return the VAPID public key for the frontend"""
+    return {"public_key": VAPID_PUBLIC_KEY}
+
 
 @api_router.get("/admin/valets")
 async def get_valets(current_user: dict = Depends(get_current_user)):
@@ -1258,7 +1406,10 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
         doc['created_at'] = doc['created_at'].isoformat()
         await db.tickets.insert_one(doc)
         
-        print(f"🎉 Created retrieval ticket for vehicle {vehicle['license_plate']}")
+        # Send push notifications to team
+        await notify_team_of_retrieval(vehicle, ticket_obj.id)
+        
+        print(f"Created retrieval ticket for vehicle {vehicle['license_plate']}")
         
         return {"reply": "🚗 Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
     

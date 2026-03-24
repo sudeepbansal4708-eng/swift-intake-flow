@@ -244,7 +244,7 @@ sudo supervisorctl restart frontend
 
 ### Create Test Vehicle
 ```bash
-curl -X POST "https://swift-valet-preview-1.preview.emergentagent.com/api/vehicles" \\
+curl -X POST "https://swift-intake-flow.preview.emergentagent.com/api/vehicles" \\
   -H "Authorization: Bearer YOUR_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -258,7 +258,7 @@ curl -X POST "https://swift-valet-preview-1.preview.emergentagent.com/api/vehicl
 
 ### Simulate WhatsApp Message
 ```bash
-curl -X POST "https://swift-valet-preview-1.preview.emergentagent.com/api/whatsapp/webhook" \\
+curl -X POST "https://swift-intake-flow.preview.emergentagent.com/api/whatsapp/webhook" \\
   -H "Content-Type: application/json" \\
   -d '{
     "phone_number": "+1234567890",

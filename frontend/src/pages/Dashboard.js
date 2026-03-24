@@ -4,26 +4,34 @@ import axios from 'axios';
 import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard } from 'lucide-react';
+import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dashStats, setDashStats] = useState(null);
+  const [valetStats, setValetStats] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
   const navigate = useNavigate();
+  const { subscribe } = usePushNotifications();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user'));
     setUser(userData);
     fetchTickets();
     if (userData?.role === 'admin') fetchDashStats();
+    if (userData?.role === 'valet') fetchValetStats();
+
+    // Subscribe to push notifications
+    subscribe();
 
     const interval = setInterval(() => {
       fetchTickets();
       if (userData?.role === 'admin') fetchDashStats();
+      if (userData?.role === 'valet') fetchValetStats();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -45,6 +53,15 @@ export default function Dashboard() {
       setDashStats(res.data);
     } catch {
       // silently fail for non-admins
+    }
+  };
+
+  const fetchValetStats = async () => {
+    try {
+      const res = await axios.get(`${API}/valet/dashboard-stats`);
+      setValetStats(res.data);
+    } catch {
+      // silently fail
     }
   };
 
@@ -168,7 +185,36 @@ export default function Dashboard() {
         )}
 
         {/* Valet stat cards */}
-        {!isAdmin && (
+        {!isAdmin && valetStats && (
+          <div className="grid grid-cols-3 gap-3">
+            <Card
+              data-testid="valet-card-parked"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
+            >
+              <Car className="w-6 h-6 text-blue-500 mb-2" />
+              <div className="text-2xl font-bold text-white">{valetStats.cars_parked_today}</div>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider">Cars Parked</div>
+            </Card>
+            <Card
+              data-testid="valet-card-retrieved"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
+            >
+              <ArrowDownToLine className="w-6 h-6 text-emerald-500 mb-2" />
+              <div className="text-2xl font-bold text-white">{valetStats.cars_retrieved_today}</div>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider">Cars Retrieved</div>
+            </Card>
+            <Card
+              data-testid="valet-card-tips"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
+            >
+              <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
+              <div className="text-2xl font-bold text-white">{valetStats.tips_today}</div>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
+            </Card>
+          </div>
+        )}
+
+        {!isAdmin && !valetStats && (
           <div className="grid grid-cols-2 gap-3">
             <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
               <div className="text-2xl font-bold text-white">{openTickets.length}</div>

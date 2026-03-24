@@ -11,54 +11,52 @@ The user wants to build a valet parking platform called SwiftValet.
     - **Phase A: Intake & Parking**
         - Quick Intake: Valet enters Phone Number, License Plate, and a physical Tag Number.
         - The intake is a 2-step process: 1. Car Handoff (Phone, Plate), 2. Parking Location (GPS, Landmark, Tag Number).
-        - GPS should be optional.
-        - Auto-Notification: A WhatsApp message is sent to the customer with parking details.
     - **Phase B: Retrieval & Claiming**
-        - Request: Customer replies RETR to the WhatsApp message to create an Open Ticket.
-        - Claim: A push notification is sent to all active valets. The first to claim gets the ticket.
+        - Customer replies RETR to the WhatsApp message to create an Open Ticket.
+        - A push notification is sent to all active valets. The first to claim gets the ticket.
     - **Phase C: The Ghosting Protocol**
-        - 5-Minute Rule: A timer starts when the car arrives.
-        - Return to Park: If the customer doesn't show up, the valet can return the car to a parking spot.
+        - 5-Minute Rule: A timer starts when the car arrives. If the customer doesn't show up, the valet can return the car to a parking spot.
     - **Phase D: Handover & Gratuity**
-        - Handover: Valet marks handover as complete.
-        - Tipping: (Deferred for now).
+        - Valet marks handover as complete and a tipping link is sent.
     - **Admin & Super Admin Features:**
-        - Admins can add their name and their client's name (e.g., restaurant name) in a profile section.
-        - When adding valets, Admins must collect a driver's license photo and number.
-        - Super Admins have a dashboard to view platform analytics.
-        - Valets and Admins are created using their phone number, without a password.
+        - Admins can add their name, their client's name, and a profile photo.
+        - Super Admins have a dashboard to view platform analytics and manage clients (admins).
+        - Admins have a dashboard to view operational stats (valets, vehicles, tips).
+- **Recent User Requests (Implemented):**
+    - Implement a detailed Nightly Pulse reporting dashboard for Admins.
+    - Fix OTP login by always displaying the OTP on screen as a fallback.
+    - Implement delete functionality for Admins (by Super Admin) and Valets (by Admin).
+    - Add collapsible sections to the Admin Panel.
+    - Add per-client reporting and delete functionality for Super Admins.
+    - Create an archive section for deactivated clients in the Super Admin panel.
+    - Add clickable stat cards and profile photo uploads for Admins.
+    - Move Admin stat cards from the settings panel to the main dashboard.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack valet platform with a React frontend and FastAPI backend. It supports four user roles.
-- **Authentication**:
-    - Super Admins log in with email and password.
-    - Admins and Valets now use a passwordless, OTP-based login system tied to their phone numbers.
-- **Key Features**:
-    - A multi-step vehicle intake form.
-    - Twilio integration for sending WhatsApp notifications.
-    - A retrieval ticket system initiated by the customer (pending configuration).
-    - Role-based dashboards for Valets, Admins, and Super Admins.
-    - An admin profile editor to set admin and client names.
-    - Super Admin panel for managing admins and viewing analytics.
-    - A system for Admins to manage valets, including viewing their driver's licenses.
+The application is a full-stack valet platform with a React frontend and FastAPI backend.
+- **Authentication**: OTP-based (passwordless) login for Admins and Valets. Email/password for Super Admins. For development, the OTP is always displayed on the login screen because the Twilio integration is not fully configured for receiving messages.
+- **Super Admin Panel**: Can manage (add, deactivate, view) client admins. Deactivated admins are moved to a collapsible Archive. Each active client has a clickable card that opens a modal with client-specific stats (drivers, cars parked, etc.).
+- **Admin Dashboard**: Now the main landing page for Admins, showing clickable stat cards for Active Valets, Vehicles Parked, and Tips Today. Clicking these cards opens a modal with detailed lists.
+- **Admin Panel (Settings)**: Refactored to contain only My Profile (with photo upload) and Team Management sections, which are collapsible.
+- **Reporting**: A dedicated, data-rich /admin/reporting page (The Nightly Pulse) exists with detailed analytics, charts, and leaderboards.
 
 **Last working item**:
-    - Last item agent was working: Implemented OTP-based (passwordless) login for Admins, mirroring the same flow previously built for Valets. This involved backend model/endpoint changes and frontend UI updates to the Super Admin panel and Login page.
-    - Status: USER VERIFICATION PENDING
+    - Last item agent was working: The agent moved the three clickable statistic cards (Active Valets, Vehicles, Tips Today) from the  (settings page) to the main  page for the Admin role, as requested by the user.
+    - Status: NONE
     - Agent Testing Done: Y
     - Which testing method agent to use? NA
-    - User Testing Done: N
+    - User Testing Done: Y
 
 **All Pending/In progress Issue list**:
   - Issue 1: Customer-initiated retrieval via WhatsApp (RETR) is not working. (P0)
 
   Issues Detail:
   - Issue 1: 
-     - Attempted fixes: The backend webhook endpoint () is functionally correct and has been updated to handle Twilio's request format (form data,  prefixed phone numbers). The issue is confirmed to be a user-side configuration problem.
+     - Attempted fixes: The backend webhook endpoint () is functionally correct. The agent has repeatedly confirmed that the issue is a user-side configuration problem.
      - Next debug checklist: The user MUST configure the inbound message webhook in their Twilio WhatsApp Sandbox settings. The next agent must guide the user through these steps:
-        1.  Navigate to the Twilio Console: [https://console.twilio.com/us1/develop/sms/settings/whatsapp-sandbox](https://console.twilio.com/us1/develop/sms/settings/whatsapp-sandbox)
+        1.  Navigate to the Twilio Console: 
         2.  Scroll to the WHEN A MESSAGE COMES IN section.
         3.  Paste the app's webhook URL into the input field: .
         4.  Set the method to  and click Save.
@@ -79,19 +77,19 @@ The application is a full-stack valet platform with a React frontend and FastAPI
 
     Future Tasks:
     - Implement a drip reminder for tips if no payment is detected after 12 hours.
-    - Add push notifications to the PWA for new tickets instead of relying on dashboard polling.
+    - Add real-time push notifications to the PWA for new tickets instead of relying on dashboard polling.
+    - Refactor  into smaller, more manageable route files (e.g., , ).
 
 **Completed work in this session**
-- List of all completed tasks with file and method name:
-  - **Admin Profile Editor**: Added a section for Admins to edit their  and . (, )
-  - **OTP Login for Valets**: Converted valet authentication from password-based to phone number + OTP. (, , )
-  - **OTP Login for Admins**: Converted admin authentication from password-based to phone number + OTP. (, , )
-  - **PRD Updates**: Updated  to reflect the latest changes.
-
-- Recently completed:
-  - OTP-based authentication for Admins (DONE)
-  - OTP-based authentication for Valets (DONE)
-  - Admin Profile Editor (DONE)
+- **Admin Stat Cards Moved to Dashboard**: Refactored the UI to move clickable stat cards from the  to the .
+- **Bug Fix (Dashboard Stats)**: Fixed a bug where vehicles parked by an Admin were not counted in dashboard stats.
+- **Admin Dashboard Features**: Implemented clickable stat cards (Valets, Vehicles, Tips) and a profile photo upload feature for Admins.
+- **Super Admin Archive**: Added a collapsible archive section for deactivated clients.
+- **Bug Fix (Delete Buttons)**: Replaced  with a reliable inline confirmation UI for deleting admins and valets.
+- **Super Admin Client Reports**: Implemented a feature where clicking a client card shows a modal with client-specific stats.
+- **Admin Panel UI/UX**: Added collapsible sections to the admin settings page.
+- **OTP Fallback**: Modified the backend to always return the OTP in the API response, ensuring developers can log in while the WhatsApp webhook is non-functional.
+- **Admin Reporting Dashboard**: Created a new  page (The Nightly Pulse) with detailed analytics, charts, and leaderboards.
 
 **Earlier issues found/mentioned but not fixed**
    - Issue 1: **Twilio Webhook Configuration**
@@ -110,7 +108,7 @@ The application is a full-stack valet platform with a React frontend and FastAPI
 
 **Key Technical Concepts**
 - **Backend**: FastAPI, Motor (async MongoDB driver), Pydantic, JWT for authentication, Twilio Python SDK.
-- **Frontend**: React, React Router, Tailwind CSS, Shadcn/UI components, Axios for API calls.
+- **Frontend**: React, React Router, Tailwind CSS, Shadcn/UI components, Recharts, Axios for API calls.
 - **Database**: MongoDB.
 - **Architecture**: Single-server monorepo with a React SPA frontend and a FastAPI backend.
 - **Authentication**: Hybrid model - email/password for Super Admin, OTP/phone for Admin and Valet roles.
@@ -125,53 +123,64 @@ The application is a full-stack valet platform with a React frontend and FastAPI
   - None.
 
 **All files of reference**
-- : The core FastAPI application containing all API endpoints, database logic, and business rules, including the new OTP logic.
-- : Handles the new unified OTP and password login flows.
-- : UI for Admins to manage valets (now using phone number) and edit their own profile.
-- : UI for Super Admin to manage admins (now using phone number).
-- : Contains updated product requirements.
+- : The main backend file, containing all API logic. Has grown significantly and is marked for refactoring.
+- : The main dashboard for Valets and now Admins. Contains the new admin stat cards.
+- : The admin settings page, now simplified to profile and team management.
+- : The main panel for Super Admins to manage clients.
+- : A new, detailed reporting page for Admins.
+- : Handles the OTP/password login flows and displays the dev OTP.
+- : The product requirements document, updated with recent changes.
 
 **Areas that need refactoring**:
-- The  file is now over 1000 lines long and contains all logic for auth, admin, super admin, vehicles, and tickets. It should be split into separate router files (e.g., , ) for maintainability.
+- The  file is now over 1200 lines long and contains all logic for auth, admin, super admin, vehicles, and tickets. It should be split into separate router files (e.g., , ) for maintainability.
 
 **key api endpoints**
-- : Super Admin login.
-- : POST for Admins/Valets to request an OTP.
-- : POST to verify an OTP and receive a JWT.
-- : POST for incoming Twilio messages (RETR).
-- : PUT for an admin to update their name/client_name.
-- : POST to create a valet (now uses phone number, no password).
-- : POST to create an admin (now uses phone number, no password).
+- : GET - Retrieves high-level stats for the Admin Dashboard cards.
+- : POST - Handles profile photo uploads for admins.
+- : GET - Provides detailed data for the Nightly Pulse report.
+- : GET - Retrieves a detailed report for a single client.
+- : DELETE - Deactivates an admin user.
+- : GET - Updated to return the user's .
+- : POST - Updated to always return  for easier development.
 
 **Critical Info for New Agent**
-- **Authentication has changed**: Admins and Valets no longer use passwords. They log in via a one-time password (OTP) sent to their phone number. Only Super Admins still use an email/password combination.
+- **OTP is always visible**: The  endpoint now *always* returns the OTP in the response as . The frontend  is designed to display this for development purposes, bypassing the non-functional WhatsApp delivery. Do not fix this; it is the intended behavior until the user configures Twilio.
 - **The RETR Webhook is BLOCKED by User Action**: Do not attempt to debug the code for the RETR feature. The code is correct. The problem is that the user has not configured the webhook URL in their Twilio account settings. The first priority is to guide the user to complete this setup.
+- **Admins can also park vehicles**: A recent bug was fixed where dashboard stats only counted vehicles parked by valets. The logic now correctly includes vehicles parked by the logged-in admin. Be mindful of this logic in any future reporting features.
 
 **documents and test reports created in this job**
 -  (updated)
 - 
 - 
 - 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1.  - **Completed**. User requested OTP login for Admins.
-2.  - **Completed**. User provided specifications for the OTP feature.
-3.  - **Completed**. User initiated the pivot to passwordless authentication for valets.
-4.  - **Completed**. User requested the Admin profile editor feature.
+1.  - **Completed**. Stat cards were moved from  to .
+2.  - **Completed**. Bug was identified (admins parking cars weren't counted) and fixed.
+3.  - **Completed**. Implemented clickable stat cards with modals and profile photo upload.
+4.  - **Completed**. Investigated and fixed the logic to ensure the dev OTP is always displayed.
+5.  - **Completed**. Implemented a collapsible archive section in the Super Admin panel.
+6.  - **Completed**. Replaced faulty  with an inline confirmation UI.
+7.  - **Completed**. Implemented client deletion (deactivation) and a per-client report modal.
+8.  - **Completed**. Verified delete functionality and implemented collapsible sections in the Admin Panel.
+9.  - **Completed**. A dev-mode OTP display was implemented.
+10.  - **Completed**. The Nightly Pulse reporting dashboard was built based on these specs.
 
 **Project Health Check:**
 - **BROKEN**:
     - The core customer-initiated retrieval flow (RETR via WhatsApp) is non-functional due to a missing configuration on the user's Twilio account.
 - **MOCKED**:
-    - GPS functionality is optional to allow for testing in environments without GPS hardware/permissions.
+    - GPS functionality is optional to allow for testing without GPS.
+    - Tip/Payment data is all placeholder (0s) as payment integration is not yet implemented.
 
 **3rd Party Integrations**
-- **Twilio (SMS/WhatsApp)**: Requires a User API Key (Account SID, Auth Token). This integration is for sending and receiving messages. It does NOT use the Emergent LLM Key.
+- **Twilio (SMS/WhatsApp)**: Requires a User API Key (Account SID, Auth Token). This integration is for *sending* messages. The *receiving* part is blocked by user configuration. It does NOT use the Emergent LLM Key.
 
 **Testing status**
   - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: , , 
+  - Test files created:  through 
   - Known regressions: None.
 
 **Credentials to test flow:**
@@ -179,7 +188,7 @@ The application is a full-stack valet platform with a React frontend and FastAPI
     - Email: 
     - Password: 
 - **Admin & Valet**:
-    - Login is now via OTP. Create a new Admin (via Super Admin panel) or Valet (via Admin panel) with a phone number. Use that phone number on the Login page to receive an OTP (the OTP will be printed in the backend logs for testing purposes, as Twilio is not configured to send SMS in the test environment).
+    - Login is via OTP. Use the Login page and enter a phone number of an existing admin/valet. The OTP will be displayed on-screen in an amber box for you to use.
 
 **What agent forgot to execute**
-- The agent correctly followed user requests. The Ghosting Protocol and Tipping features from the original product requirements remain as upcoming tasks, which is expected.</analysis>
+The agent has successfully implemented all user requests from the current session. The Ghosting Protocol and Tipping features remain as upcoming tasks, which is the correct prioritization based on the workflow.</analysis>
