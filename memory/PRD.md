@@ -30,14 +30,24 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
   - Client management (create/delete), per-client report modal (Drivers, Parked Now, Tips, Parked Today)
   - Archive for deactivated clients (collapsible)
 - Inline delete confirmation (no browser dialogs)
+- **Valet Dashboard Stats** (NEW - Mar 24, 2026):
+  - 3 metric cards: Cars Parked Today, Cars Retrieved Today, Tips Today (individual valet level)
+  - Endpoint: GET /api/valet/dashboard-stats
+- **Push Notifications** (NEW - Mar 24, 2026):
+  - Web Push API with VAPID keys and service worker (sw.js)
+  - Valets and client admins receive push notifications on every retrieval request
+  - Endpoints: POST /api/push/subscribe, POST /api/push/unsubscribe, GET /api/push/vapid-key
+  - Subscription storage in MongoDB push_subscriptions collection
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
+- `/api/valet/dashboard-stats` - Individual valet metrics (parked, retrieved, tips today)
 - `/api/admin/dashboard-stats` - Clickable card details (valets, vehicles, tips)
 - `/api/admin/profile` (PUT), `/api/admin/profile/photo` (POST)
 - `/api/admin/reporting`, `/api/admin/reporting/export`
 - `/api/super-admin/clients/{client_id}/report`
 - `/api/vehicles`, `/api/tickets`, `/api/admin/valets`, `/api/admin/tips`
+- `/api/push/subscribe`, `/api/push/unsubscribe`, `/api/push/vapid-key`
 
 ## Tech Stack
 - Backend: FastAPI, Motor, Pydantic, JWT, Twilio SDK
@@ -50,7 +60,8 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
 - GPS optional, Twilio in sandbox mode
 
 ## Upcoming Tasks
-1. P1: Phase C — Ghosting Protocol (5-min timer, return to park)
-2. P2: Phase D — Handover & Gratuity (payment/tipping integration)
-3. Future: Drip tip reminders, PWA push notifications
-4. Refactoring: Split server.py into modular route files
+1. P0: Guide user to configure Twilio webhook for RETR feature
+2. P1: Phase C — Ghosting Protocol (5-min timer, return to park)
+3. P2: Phase D — Handover & Gratuity (payment/tipping integration)
+4. Future: Drip tip reminders
+5. Refactoring: Split server.py into modular route files
