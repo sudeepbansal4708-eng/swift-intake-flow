@@ -538,6 +538,112 @@ async def create_ticket(vehicle_id: str, current_user: dict = Depends(get_curren
     
     return ticket_obj.model_dump()
 
+
+class RetrieveRequest(BaseModel):
+    phone_number: str
+
+
+@api_router.post("/tickets/retrieve")
+async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(get_current_user)):
+    """Valet-initiated retrieval: lookup vehicle by customer phone and auto-assign ticket"""
+    phone = data.phone_number.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    # Find the most recently parked vehicle for this phone number
+    vehicle = await db.vehicles.find_one(
+        {"phone_number": phone},
+        {"_id": 0},
+        sort=[("parked_at", -1)]
+    )
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="No vehicle found for this phone number")
+
+    # Check for existing active ticket
+    existing = await db.tickets.find_one({
+        "vehicle_id": vehicle['id'],
+        "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="A retrieval ticket already exists for this vehicle")
+
+    now = datetime.now(timezone.utc)
+    ticket_obj = Ticket(
+        vehicle_id=vehicle['id'],
+        customer_phone=phone,
+        status="claimed"
+    )
+
+    doc = ticket_obj.model_dump()
+    doc['created_at'] = now.isoformat()
+    doc['claimed_by'] = current_user['id']
+    doc['claimed_at'] = now.isoformat()
+
+    await db.tickets.insert_one(doc)
+
+    # Send push notifications to team
+    await notify_team_of_retrieval(vehicle, ticket_obj.id)
+
+    # Send WhatsApp notification to customer
+    message = f"🔔 Great news! Valet {current_user['name']} is retrieving your car ({vehicle['license_plate']})."
+    await send_whatsapp_message(phone, message)
+
+    # Build clean response without _id
+    ticket_response = {
+        "id": ticket_obj.id,
+        "vehicle_id": vehicle['id'],
+        "customer_phone": phone,
+        "status": "claimed",
+        "claimed_by": current_user['id'],
+        "claimed_at": doc['claimed_at'],
+        "created_at": doc['created_at'],
+        "vehicle": {
+            "license_plate": vehicle.get("license_plate"),
+            "tag_number": vehicle.get("tag_number"),
+            "zone_label": vehicle.get("zone_label"),
+            "phone_number": vehicle.get("phone_number"),
+        }
+    }
+
+    return {
+        "ticket": ticket_response,
+        "message": "Retrieval ticket created and assigned to you"
+    }
+
+
+@api_router.get("/vehicles/lookup")
+async def lookup_vehicle_by_phone(phone: str, current_user: dict = Depends(get_current_user)):
+    """Lookup the most recent vehicle for a given phone number"""
+    phone = phone.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+
+    vehicle = await db.vehicles.find_one(
+        {"phone_number": phone},
+        {"_id": 0},
+        sort=[("parked_at", -1)]
+    )
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="No vehicle found for this phone number")
+
+    # Check if there's already an active ticket
+    existing_ticket = await db.tickets.find_one({
+        "vehicle_id": vehicle['id'],
+        "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+    }, {"_id": 0})
+
+    return {
+        "vehicle": {
+            "id": vehicle.get("id"),
+            "license_plate": vehicle.get("license_plate"),
+            "tag_number": vehicle.get("tag_number"),
+            "zone_label": vehicle.get("zone_label"),
+            "phone_number": vehicle.get("phone_number"),
+            "parked_at": vehicle.get("parked_at"),
+        },
+        "has_active_ticket": existing_ticket is not None
+    }
+
 @api_router.get("/tickets")
 async def get_tickets(status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
