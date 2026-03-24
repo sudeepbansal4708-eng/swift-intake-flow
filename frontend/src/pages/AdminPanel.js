@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Users, DollarSign, Car, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3, ChevronDown, MapPin, Phone, Clock, Upload } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3, ChevronDown, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 
@@ -25,8 +25,6 @@ export default function AdminPanel() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(true);
-  const [dashStats, setDashStats] = useState(null);
-  const [activeModal, setActiveModal] = useState(null); // 'valets' | 'vehicles' | 'tips'
   const fileInputRef = useRef(null);
   const profilePhotoRef = useRef(null);
   const navigate = useNavigate();
@@ -34,7 +32,6 @@ export default function AdminPanel() {
   useEffect(() => {
     fetchData();
     fetchProfile();
-    fetchDashStats();
   }, []);
 
   const fetchProfile = async () => {
@@ -47,15 +44,6 @@ export default function AdminPanel() {
       });
     } catch (error) {
       console.error('Failed to fetch profile');
-    }
-  };
-
-  const fetchDashStats = async () => {
-    try {
-      const res = await axios.get(`${API}/admin/dashboard-stats`);
-      setDashStats(res.data);
-    } catch {
-      // silently fail
     }
   };
 
@@ -218,36 +206,6 @@ export default function AdminPanel() {
             <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
             Reporting
           </Button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <Card
-            data-testid="card-active-valets"
-            onClick={() => setActiveModal('valets')}
-            className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 cursor-pointer hover:border-blue-800/50 transition-colors active:scale-95"
-          >
-            <Users className="w-6 h-6 text-blue-500 mb-2" />
-            <div className="text-2xl font-bold text-white">{dashStats?.totals?.valets ?? activeValets.length}</div>
-            <div className="text-xs text-zinc-400 uppercase tracking-wider">Active Valets</div>
-          </Card>
-          <Card
-            data-testid="card-vehicles"
-            onClick={() => setActiveModal('vehicles')}
-            className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 cursor-pointer hover:border-emerald-800/50 transition-colors active:scale-95"
-          >
-            <Car className="w-6 h-6 text-emerald-500 mb-2" />
-            <div className="text-2xl font-bold text-white">{dashStats?.totals?.vehicles ?? vehicles.length}</div>
-            <div className="text-xs text-zinc-400 uppercase tracking-wider">Vehicles</div>
-          </Card>
-          <Card
-            data-testid="card-tips"
-            onClick={() => setActiveModal('tips')}
-            className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 cursor-pointer hover:border-amber-800/50 transition-colors active:scale-95"
-          >
-            <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
-            <div className="text-2xl font-bold text-white">₹{dashStats?.totals?.tips_amount ?? totalTips}</div>
-            <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
-          </Card>
         </div>
 
         {/* Profile Editor - Collapsible */}
@@ -544,104 +502,6 @@ export default function AdminPanel() {
                     <img src={selectedValet.driver_license_photo} alt="Driver License" className="w-full" />
                   </div>
                 </div>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Detail Modals */}
-      {activeModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setActiveModal(null)}>
-          <Card
-            data-testid={`modal-${activeModal}`}
-            className="bg-zinc-900 border border-zinc-700 w-full max-w-md max-h-[80vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800 shrink-0">
-              <h3 className="font-bold text-white text-lg uppercase" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-                {activeModal === 'valets' && 'Active Valets'}
-                {activeModal === 'vehicles' && 'Parked Vehicles'}
-                {activeModal === 'tips' && 'Tips Breakdown'}
-              </h3>
-              <Button data-testid="close-detail-modal" onClick={() => setActiveModal(null)} variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            <div className="overflow-y-auto p-4 space-y-2">
-              {activeModal === 'valets' && (
-                dashStats?.active_valets?.length > 0 ? (
-                  dashStats.active_valets.map((v) => (
-                    <Card key={v.id} data-testid={`modal-valet-${v.id}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-full bg-blue-900/30 border border-blue-800/50 flex items-center justify-center shrink-0">
-                          <Users className="w-4 h-4 text-blue-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-white text-sm">{v.name}</div>
-                          {v.phone_number && <div className="flex items-center gap-1 text-xs text-zinc-400"><Phone className="w-3 h-3" />{v.phone_number}</div>}
-                          {v.email && <div className="text-xs text-zinc-500 truncate">{v.email}</div>}
-                          {v.driver_license_number && <div className="flex items-center gap-1 text-xs text-emerald-500 mt-1"><IdCard className="w-3 h-3" />{v.driver_license_number}</div>}
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-zinc-500 text-sm">No active valets</div>
-                )
-              )}
-
-              {activeModal === 'vehicles' && (
-                dashStats?.parked_vehicles?.length > 0 ? (
-                  dashStats.parked_vehicles.map((v) => (
-                    <Card key={v.id} data-testid={`modal-vehicle-${v.id}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Car className="w-4 h-4 text-emerald-400" />
-                            <span className="font-bold text-white text-sm">{v.license_plate}</span>
-                            {v.tag_number && <span className="text-[10px] text-amber-400 bg-amber-950/20 border border-amber-900/50 px-1.5 py-0.5 rounded">#{v.tag_number}</span>}
-                          </div>
-                          {v.zone_label && <div className="flex items-center gap-1 text-xs text-zinc-400"><MapPin className="w-3 h-3" />{v.zone_label}</div>}
-                          <div className="flex items-center gap-1 text-xs text-zinc-500 mt-0.5"><Phone className="w-3 h-3" />{v.phone_number}</div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-[10px] text-zinc-500">{v.parked_by_name}</div>
-                          {v.parked_at && <div className="text-[10px] text-zinc-600">{new Date(v.parked_at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</div>}
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-zinc-500 text-sm">No vehicles parked today</div>
-                )
-              )}
-
-              {activeModal === 'tips' && (
-                dashStats?.tips?.length > 0 ? (
-                  dashStats.tips.map((t, i) => (
-                    <Card key={i} data-testid={`modal-tip-${i}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="text-sm text-white font-medium">₹{t.amount}</div>
-                          <div className="text-xs text-zinc-400">{t.valet_name}</div>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${t.status === 'paid' ? 'text-emerald-400 border-emerald-800/50 bg-emerald-950/20' : 'text-amber-400 border-amber-800/50 bg-amber-950/20'}`}>
-                            {t.status.toUpperCase()}
-                          </span>
-                          {t.created_at && <div className="text-[10px] text-zinc-600 mt-0.5">{new Date(t.created_at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</div>}
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <DollarSign className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                    <div className="text-sm text-zinc-500">No tips received today</div>
-                    <div className="text-[10px] text-zinc-600 mt-1 italic">Tip data will appear once payment integration is live</div>
-                  </div>
-                )
               )}
             </div>
           </Card>
