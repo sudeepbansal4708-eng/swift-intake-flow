@@ -667,30 +667,31 @@ async def get_admin_dashboard_stats(current_user: dict = Depends(get_current_use
         {"_id": 0, "id": 1, "name": 1, "phone_number": 1, "email": 1, "driver_license_number": 1}
     ).to_list(500)
 
-    # Get valet IDs
+    # Get valet IDs + admin's own ID (admin can also park vehicles)
     valet_ids = [v['id'] for v in active_valets]
+    team_ids = valet_ids + [current_user['id']]
 
-    # Parked vehicles (today, by this client's valets)
+    # Parked vehicles (today, by this client's team)
     parked_vehicles = []
-    if valet_ids:
-        vehicles = await db.vehicles.find(
-            {"parked_by": {"$in": valet_ids}, "parked_at": {"$gte": today_start}},
-            {"_id": 0}
-        ).to_list(5000)
+    vehicles = await db.vehicles.find(
+        {"parked_by": {"$in": team_ids}, "parked_at": {"$gte": today_start}},
+        {"_id": 0}
+    ).to_list(5000)
 
-        # Get valet name map
-        valet_name_map = {v['id']: v['name'] for v in active_valets}
+    # Name map includes admin
+    valet_name_map = {v['id']: v['name'] for v in active_valets}
+    valet_name_map[current_user['id']] = current_user.get('name', 'Admin')
 
-        for v in vehicles:
-            parked_vehicles.append({
-                "id": v.get('id'),
-                "license_plate": v.get('license_plate'),
-                "phone_number": v.get('phone_number'),
-                "tag_number": v.get('tag_number'),
-                "zone_label": v.get('zone_label', ''),
-                "parked_at": v.get('parked_at'),
-                "parked_by_name": valet_name_map.get(v.get('parked_by'), 'Unknown'),
-            })
+    for v in vehicles:
+        parked_vehicles.append({
+            "id": v.get('id'),
+            "license_plate": v.get('license_plate'),
+            "phone_number": v.get('phone_number'),
+            "tag_number": v.get('tag_number'),
+            "zone_label": v.get('zone_label', ''),
+            "parked_at": v.get('parked_at'),
+            "parked_by_name": valet_name_map.get(v.get('parked_by'), 'Unknown'),
+        })
 
     # Tips today (placeholder)
     tips_today = await db.tips.find(
