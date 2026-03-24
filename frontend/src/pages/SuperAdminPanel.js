@@ -6,8 +6,9 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp, ChevronRight, Loader2, Archive, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 
 export default function SuperAdminPanel() {
   const [clients, setClients] = useState([]);
@@ -18,6 +19,7 @@ export default function SuperAdminPanel() {
   const [clientReport, setClientReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     phone_number: '',
@@ -210,12 +212,12 @@ export default function SuperAdminPanel() {
             Client Admins
           </h2>
           <div className="space-y-3">
-            {clients.map((admin) => (
+            {clients.filter(a => a.is_active !== false).map((admin) => (
               <Card
                 key={admin.id}
                 data-testid={`admin-${admin.id}`}
-                onClick={() => admin.is_active !== false && openClientReport(admin)}
-                className={`bg-zinc-900/50 backdrop-blur-md border p-4 transition-colors ${admin.is_active !== false ? 'border-zinc-800 hover:border-zinc-600 cursor-pointer active:scale-[0.98]' : 'border-zinc-800/50 opacity-60'}`}
+                onClick={() => openClientReport(admin)}
+                className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 hover:border-zinc-600 cursor-pointer active:scale-[0.98] p-4 transition-all"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -240,61 +242,95 @@ export default function SuperAdminPanel() {
                         </div>
                       </div>
                     )}
-                    {admin.is_active === false && (
-                      <span className="inline-block mt-2 text-xs text-red-400 px-2 py-0.5 bg-red-950/20 border border-red-900/50 rounded">
-                        Inactive
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {admin.is_active !== false && (
-                      <>
-                        {confirmDelete === admin.id ? (
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              data-testid={`confirm-delete-${admin.id}`}
-                              onClick={(e) => deleteAdmin(admin.id, e)}
-                              className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
-                            >
-                              Confirm
-                            </Button>
-                            <Button
-                              data-testid={`cancel-delete-${admin.id}`}
-                              onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                              variant="ghost"
-                              className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            data-testid={`delete-admin-${admin.id}`}
-                            onClick={(e) => deleteAdmin(admin.id, e)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-zinc-600" />
-                      </>
+                    {confirmDelete === admin.id ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          data-testid={`confirm-delete-${admin.id}`}
+                          onClick={(e) => deleteAdmin(admin.id, e)}
+                          className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          data-testid={`cancel-delete-${admin.id}`}
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
+                          variant="ghost"
+                          className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        data-testid={`delete-admin-${admin.id}`}
+                        onClick={(e) => deleteAdmin(admin.id, e)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     )}
+                    <ChevronRight className="w-4 h-4 text-zinc-600" />
                   </div>
                 </div>
               </Card>
             ))}
 
-            {clients.length === 0 && (
+            {clients.filter(a => a.is_active !== false).length === 0 && (
               <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-8 text-center">
                 <Building className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                <p className="text-zinc-400">No client admins yet</p>
+                <p className="text-zinc-400">No active client admins</p>
                 <p className="text-sm text-zinc-500 mt-1">Click "Add Client Admin" to get started</p>
               </Card>
             )}
           </div>
         </div>
+
+        {/* Archived Clients */}
+        {clients.filter(a => a.is_active === false).length > 0 && (
+          <Collapsible open={archiveOpen} onOpenChange={setArchiveOpen}>
+            <CollapsibleTrigger asChild>
+              <div
+                data-testid="toggle-archive-section"
+                className="flex items-center justify-between py-3 px-1 cursor-pointer group"
+              >
+                <div className="flex items-center gap-2">
+                  <Archive className="w-4 h-4 text-zinc-600" />
+                  <span className="text-sm text-zinc-500 uppercase tracking-widest font-semibold" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                    Archive
+                  </span>
+                  <span className="text-xs text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded">
+                    {clients.filter(a => a.is_active === false).length}
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-zinc-600 transition-transform duration-200 ${archiveOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-2 pt-1">
+                {clients.filter(a => a.is_active === false).map((admin) => (
+                  <Card
+                    key={admin.id}
+                    data-testid={`archived-admin-${admin.id}`}
+                    className="bg-zinc-900/30 border border-zinc-800/40 p-3 opacity-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building className="w-3.5 h-3.5 text-zinc-600" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-zinc-400 font-medium truncate">{admin.client_name || 'Unnamed Client'}</div>
+                        <div className="text-xs text-zinc-600 truncate">{admin.name} &middot; {admin.email}</div>
+                      </div>
+                      <span className="text-[9px] text-red-500/60 uppercase tracking-wider shrink-0">Deactivated</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
 
       {/* Client Report Modal */}
