@@ -43,6 +43,11 @@ Build a valet parking platform called "SwiftValet" with four user roles: Custome
   - Park: navigates to /intake (existing parking workflow)
   - Retrieve: opens modal to enter customer phone, lookup vehicle, and auto-assign retrieval ticket to initiating valet
   - Endpoints: POST /api/tickets/retrieve, GET /api/vehicles/lookup
+- **Admin Manual Vehicle Checkout** (NEW - Mar 24, 2026):
+  - Admins can checkout vehicles directly from the Parked Vehicles modal on dashboard
+  - Inline confirmation flow (Checkout → Confirm/Cancel)
+  - Creates a completed ticket for record-keeping, sends WhatsApp thank-you message
+  - Endpoint: POST /api/admin/vehicles/{vehicle_id}/checkout
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
