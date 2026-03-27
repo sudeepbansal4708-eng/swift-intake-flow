@@ -5,7 +5,7 @@ import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle } from 'lucide-react';
+import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [retrieveLoading, setRetrieveLoading] = useState(false);
   const [checkoutConfirm, setCheckoutConfirm] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [requestOnlineLoading, setRequestOnlineLoading] = useState(false);
   const navigate = useNavigate();
   const { subscribe } = usePushNotifications();
 
@@ -33,6 +34,7 @@ export default function Dashboard() {
     fetchTickets();
     if (userData?.role === 'admin') fetchDashStats();
     if (userData?.role === 'valet') fetchValetStats();
+    refreshUserStatus();
 
     // Subscribe to push notifications
     subscribe();
@@ -41,6 +43,7 @@ export default function Dashboard() {
       fetchTickets();
       if (userData?.role === 'admin') fetchDashStats();
       if (userData?.role === 'valet') fetchValetStats();
+      refreshUserStatus();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -71,6 +74,33 @@ export default function Dashboard() {
       setValetStats(res.data);
     } catch {
       // silently fail
+    }
+  };
+
+  const refreshUserStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/auth/me`);
+      setUser(prev => prev ? { ...prev, is_online: res.data.is_online } : prev);
+      // Update localStorage
+      const stored = JSON.parse(localStorage.getItem('user'));
+      if (stored) {
+        stored.is_online = res.data.is_online;
+        localStorage.setItem('user', JSON.stringify(stored));
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  const requestOnline = async () => {
+    setRequestOnlineLoading(true);
+    try {
+      const res = await axios.post(`${API}/valet/request-online`);
+      toast.success(res.data.message);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to send request');
+    } finally {
+      setRequestOnlineLoading(false);
     }
   };
 
@@ -244,6 +274,36 @@ export default function Dashboard() {
               <div className="text-2xl font-bold text-white">₹{dashStats.totals.tips_amount}</div>
               <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
             </Card>
+          </div>
+        )}
+
+        {/* Valet offline banner */}
+        {!isAdmin && user?.role === 'valet' && !user?.is_online && (
+          <Card data-testid="valet-offline-banner" className="bg-red-950/20 border border-red-800/50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <WifiOff className="w-5 h-5 text-red-400" />
+                <div>
+                  <div className="text-sm font-semibold text-red-300">You are offline</div>
+                  <div className="text-xs text-red-400/70">Ask your manager to mark you online to start your shift</div>
+                </div>
+              </div>
+              <Button
+                data-testid="request-online-button"
+                onClick={requestOnline}
+                disabled={requestOnlineLoading}
+                className="h-9 px-4 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold"
+              >
+                {requestOnlineLoading ? '...' : 'Request Online'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {!isAdmin && user?.role === 'valet' && user?.is_online && (
+          <div data-testid="valet-online-badge" className="flex items-center gap-2 text-emerald-400 text-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium">Online</span>
           </div>
         )}
 

@@ -345,7 +345,8 @@ async def login(credentials: UserLogin):
             "name": user['name'],
             "role": user['role'],
             "client_name": user.get('client_name'),
-            "client_id": user.get('client_id')
+            "client_id": user.get('client_id'),
+            "is_online": user.get('is_online', False)
         }
     }
 
@@ -358,7 +359,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "role": current_user['role'],
         "client_name": current_user.get('client_name'),
         "client_id": current_user.get('client_id'),
-        "profile_photo": current_user.get('profile_photo')
+        "profile_photo": current_user.get('profile_photo'),
+        "is_online": current_user.get('is_online', False)
     }
 
 @api_router.post("/auth/otp/request")
@@ -428,12 +430,17 @@ async def verify_otp(data: OTPVerify):
             "name": user['name'],
             "role": user['role'],
             "client_name": user.get('client_name'),
-            "client_id": user.get('client_id')
+            "client_id": user.get('client_id'),
+            "is_online": user.get('is_online', False)
         }
     }
 
 @api_router.post("/vehicles")
 async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
+    # Only online valets can park
+    if current_user['role'] == 'valet' and not current_user.get('is_online'):
+        raise HTTPException(status_code=403, detail="You must be marked online by your manager to park vehicles")
+
     vehicle_dict = vehicle_data.model_dump()
     vehicle_dict['parked_by'] = current_user['id']
     vehicle_obj = Vehicle(**vehicle_dict)
@@ -546,6 +553,10 @@ class RetrieveRequest(BaseModel):
 @api_router.post("/tickets/retrieve")
 async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(get_current_user)):
     """Valet-initiated retrieval: lookup vehicle by customer phone and auto-assign ticket"""
+    # Only online valets can retrieve
+    if current_user['role'] == 'valet' and not current_user.get('is_online'):
+        raise HTTPException(status_code=403, detail="You must be marked online by your manager to retrieve vehicles")
+
     phone = data.phone_number.strip()
     if not phone.startswith('+'):
         phone = '+' + phone
@@ -923,6 +934,80 @@ async def get_valets(current_user: dict = Depends(get_current_user)):
     
     valets = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return valets
+
+
+@api_router.put("/admin/valets/{valet_id}/toggle-online")
+async def toggle_valet_online(valet_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin toggles a valet's online/offline status"""
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    valet = await db.users.find_one({"id": valet_id, "role": "valet"}, {"_id": 0})
+    if not valet:
+        raise HTTPException(status_code=404, detail="Valet not found")
+
+    new_status = not valet.get('is_online', False)
+    await db.users.update_one({"id": valet_id}, {"$set": {"is_online": new_status}})
+
+    # If going online, clear any pending online request
+    if new_status:
+        await db.online_requests.delete_many({"valet_id": valet_id})
+
+    return {"is_online": new_status, "valet_id": valet_id}
+
+
+@api_router.post("/valet/request-online")
+async def valet_request_online(current_user: dict = Depends(get_current_user)):
+    """Valet sends a request to their admin to be marked online"""
+    if current_user['role'] != 'valet':
+        raise HTTPException(status_code=403, detail="Valet access required")
+
+    if current_user.get('is_online'):
+        return {"message": "You are already online"}
+
+    # Check for existing pending request
+    existing = await db.online_requests.find_one(
+        {"valet_id": current_user['id'], "status": "pending"}, {"_id": 0}
+    )
+    if existing:
+        return {"message": "Request already pending"}
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.online_requests.insert_one({
+        "valet_id": current_user['id'],
+        "valet_name": current_user.get('name', 'Unknown'),
+        "client_id": current_user.get('client_id'),
+        "status": "pending",
+        "created_at": now
+    })
+
+    # Notify admin(s) via push
+    admins = await db.users.find(
+        {"client_id": current_user.get('client_id'), "role": "admin", "is_active": True},
+        {"_id": 0, "id": 1}
+    ).to_list(20)
+    for admin in admins:
+        await send_push_notification(
+            admin['id'],
+            "Shift Request",
+            f"{current_user.get('name', 'A valet')} is requesting to go online",
+            {"type": "online_request", "valet_id": current_user['id']}
+        )
+
+    return {"message": "Request sent to your manager"}
+
+
+@api_router.get("/admin/online-requests")
+async def get_online_requests(current_user: dict = Depends(get_current_user)):
+    """Get pending online requests for this admin's team"""
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    requests = await db.online_requests.find(
+        {"client_id": current_user.get('client_id'), "status": "pending"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return requests
 
 @api_router.put("/admin/profile")
 async def update_admin_profile(

@@ -6,9 +6,10 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3, ChevronDown, Upload } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, X, IdCard, Camera, Eye, UserCog, Save, BarChart3, ChevronDown, Upload, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
+import { Switch } from '../components/ui/switch';
 
 export default function AdminPanel() {
   const [valets, setValets] = useState([]);
@@ -25,6 +26,7 @@ export default function AdminPanel() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(true);
+  const [onlineRequests, setOnlineRequests] = useState([]);
   const fileInputRef = useRef(null);
   const profilePhotoRef = useRef(null);
   const navigate = useNavigate();
@@ -32,6 +34,9 @@ export default function AdminPanel() {
   useEffect(() => {
     fetchData();
     fetchProfile();
+    fetchOnlineRequests();
+    const interval = setInterval(fetchOnlineRequests, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchProfile = async () => {
@@ -120,6 +125,27 @@ export default function AdminPanel() {
   const viewLicense = (valet) => {
     setSelectedValet(valet);
     setShowLicenseModal(true);
+  };
+
+  const toggleValetOnline = async (valetId) => {
+    try {
+      const res = await axios.put(`${API}/admin/valets/${valetId}/toggle-online`);
+      const status = res.data.is_online ? 'online' : 'offline';
+      toast.success(`Valet marked ${status}`);
+      fetchData();
+      fetchOnlineRequests();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to toggle status');
+    }
+  };
+
+  const fetchOnlineRequests = async () => {
+    try {
+      const res = await axios.get(`${API}/admin/online-requests`);
+      setOnlineRequests(res.data);
+    } catch {
+      // silent
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -402,11 +428,38 @@ export default function AdminPanel() {
           </Card>
         )}
 
+                {/* Pending Online Requests */}
+                {onlineRequests.length > 0 && (
+                  <Card data-testid="online-requests-card" className="bg-amber-950/20 border border-amber-800/50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">Shift Requests</div>
+                    {onlineRequests.map((req) => (
+                      <div key={req.valet_id} className="flex items-center justify-between py-1.5">
+                        <span className="text-sm text-white">{req.valet_name} wants to go online</span>
+                        <Button
+                          data-testid={`approve-online-${req.valet_id}`}
+                          onClick={() => toggleValetOnline(req.valet_id)}
+                          className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                        >
+                          Approve
+                        </Button>
+                      </div>
+                    ))}
+                  </Card>
+                )}
+
                 {valets.filter(v => v.role !== 'admin').map((valet) => (
                   <Card key={valet.id} data-testid={`valet-card-${valet.id}`} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="font-medium text-white">{valet.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{valet.name}</span>
+                          {valet.is_online && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 px-1.5 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              ONLINE
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-zinc-400">{valet.email}</div>
                         {valet.phone_number && (
                           <div className="text-sm text-zinc-500">{valet.phone_number}</div>
@@ -431,37 +484,46 @@ export default function AdminPanel() {
                           <span className="inline-block mt-1 text-xs text-red-400 px-2 py-0.5 bg-red-950/20 border border-red-900/50 rounded">(Inactive)</span>
                         )}
                       </div>
-                      {valet.is_active !== false && (
-                        confirmDelete === valet.id ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              data-testid={`confirm-delete-valet-${valet.id}`}
-                              onClick={() => deleteValet(valet.id)}
-                              className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
-                            >
-                              Confirm
-                            </Button>
-                            <Button
-                              data-testid={`cancel-delete-valet-${valet.id}`}
-                              onClick={() => setConfirmDelete(null)}
-                              variant="ghost"
-                              className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
-                            >
-                              Cancel
-                            </Button>
+                      <div className="flex flex-col items-end gap-2">
+                        {valet.is_active !== false && (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              data-testid={`toggle-online-${valet.id}`}
+                              checked={!!valet.is_online}
+                              onCheckedChange={() => toggleValetOnline(valet.id)}
+                            />
+                            {confirmDelete === valet.id ? (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  data-testid={`confirm-delete-valet-${valet.id}`}
+                                  onClick={() => deleteValet(valet.id)}
+                                  className="h-7 px-2 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-semibold"
+                                >
+                                  Confirm
+                                </Button>
+                                <Button
+                                  data-testid={`cancel-delete-valet-${valet.id}`}
+                                  onClick={() => setConfirmDelete(null)}
+                                  variant="ghost"
+                                  className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                data-testid={`delete-valet-${valet.id}`}
+                                onClick={() => deleteValet(valet.id)}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
-                        ) : (
-                          <Button
-                            data-testid={`delete-valet-${valet.id}`}
-                            onClick={() => deleteValet(valet.id)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )
-                      )}
+                        )}
+                      </div>
                     </div>
                   </Card>
                 ))}
