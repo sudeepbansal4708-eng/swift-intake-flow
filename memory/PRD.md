@@ -1,7 +1,7 @@
-# SwiftValet - Product Requirements Document
+# ParKaro - Product Requirements Document
 
 ## Original Problem Statement
-Build a valet parking platform called "SwiftValet" with four user roles: Customer (WhatsApp), Valet Driver (React PWA), Admin (manage drivers/tips/cars), and Super Admin (manage admins/analytics).
+Build a valet parking platform called "ParKaro" with four user roles: Customer (WhatsApp), Valet Driver (React PWA), Admin (manage drivers/tips/cars), and Super Admin (manage admins/analytics).
 
 ## User Roles
 - **Customer**: Interacts via WhatsApp (no app needed)

@@ -89,7 +89,7 @@ export default function Login({ setIsAuthenticated }) {
             <Car className="w-8 h-8 text-blue-500" />
           </div>
           <h1 className="text-5xl font-bold uppercase tracking-tight text-white mb-2" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-            SwiftValet
+            ParKaro
           </h1>
           <p className="text-zinc-400 text-sm">PREMIUM PARKING SERVICE</p>
         </div>

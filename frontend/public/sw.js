@@ -1,7 +1,7 @@
-/* Service Worker for SwiftValet Push Notifications */
+/* Service Worker for ParKaro Push Notifications */
 
 self.addEventListener('push', function(event) {
-  let data = { title: 'SwiftValet', body: 'New notification', data: {} };
+  let data = { title: 'ParKaro', body: 'New notification', data: {} };
   
   try {
     if (event.data) {
@@ -20,7 +20,7 @@ self.addEventListener('push', function(event) {
     actions: data.data?.type === 'retrieval' ? [
       { action: 'open', title: 'View Ticket' }
     ] : [],
-    tag: data.data?.ticket_id || 'swiftvalet-notification',
+    tag: data.data?.ticket_id || 'parkaro-notification',
     renotify: true
   };
 

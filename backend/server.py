@@ -58,7 +58,7 @@ else:
 # VAPID push notification config
 VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
 VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
-VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@swiftvalet.com')
+VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@parkaro.com')
 
 # Create the main app
 app = FastAPI()
@@ -386,7 +386,7 @@ async def request_otp(data: OTPRequest):
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    message = f"Your SwiftValet login code is: {otp}\n\nThis code expires in 10 minutes."
+    message = f"Your ParKaro login code is: {otp}\n\nThis code expires in 10 minutes."
     whatsapp_result = await send_whatsapp_message(phone, message)
     logging.info(f"OTP sent to {phone}: result={whatsapp_result}")
 
@@ -448,7 +448,7 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     
     # Get client name from the valet who parked it
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
-    client_name = valet.get('client_name', 'SwiftValet') if valet else 'SwiftValet'
+    client_name = valet.get('client_name', 'ParKaro') if valet else 'ParKaro'
     
     location_info = f"Zone: {vehicle_obj.zone_label}" if vehicle_obj.zone_label else "Location saved"
     tag_info = f"\n🏷️ Tag Number: {vehicle_obj.tag_number}" if vehicle_obj.tag_number else ""
@@ -750,12 +750,12 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
                     "callback_method": "get"
                 })
                 
-                message = f"🎉 Thank you for using SwiftValet!\n\nIf you'd like to tip your valet, you can do so here:\n{payment_link['short_url']}\n\nPreset amounts: ₹50, ₹100, ₹200 or custom."
+                message = f"🎉 Thank you for using ParKaro!\n\nIf you'd like to tip your valet, you can do so here:\n{payment_link['short_url']}\n\nPreset amounts: ₹50, ₹100, ₹200 or custom."
             except Exception as e:
                 logging.error(f"Razorpay error: {str(e)}")
-                message = "🎉 Thank you for using SwiftValet! Your feedback means a lot to us."
+                message = "🎉 Thank you for using ParKaro! Your feedback means a lot to us."
         else:
-            message = "🎉 Thank you for using SwiftValet!"
+            message = "🎉 Thank you for using ParKaro!"
         
         await send_whatsapp_message(ticket['customer_phone'], message)
     
@@ -859,12 +859,12 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
                 "callback_url": f"{os.environ.get('BACKEND_URL', '')}/api/tips/callback",
                 "callback_method": "get"
             })
-            message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out.\n\nIf you'd like to tip your valet:\n{payment_link['short_url']}"
+            message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out.\n\nIf you'd like to tip your valet:\n{payment_link['short_url']}"
         except Exception as e:
             logging.error(f"Razorpay error: {str(e)}")
-            message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
+            message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
     else:
-        message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
+        message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
 
     await send_whatsapp_message(vehicle['phone_number'], message)
 
@@ -1537,7 +1537,7 @@ async def export_reporting_csv(current_user: dict = Depends(get_current_user)):
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=swiftvalet_payout_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"}
+        headers={"Content-Disposition": f"attachment; filename=parkaro_payout_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"}
     )
 
 @api_router.post("/whatsapp/webhook")
