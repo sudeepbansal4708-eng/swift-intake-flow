@@ -5,7 +5,7 @@ import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle } from 'lucide-react';
+import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [retrieveLoading, setRetrieveLoading] = useState(false);
+  const [checkoutConfirm, setCheckoutConfirm] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const navigate = useNavigate();
   const { subscribe } = usePushNotifications();
 
@@ -126,6 +128,20 @@ export default function Dashboard() {
     setShowRetrieveModal(true);
     setRetrievePhone('');
     setLookupResult(null);
+  };
+
+  const handleCheckout = async (vehicleId) => {
+    setCheckoutLoading(true);
+    try {
+      await axios.post(`${API}/admin/vehicles/${vehicleId}/checkout`);
+      toast.success('Vehicle checked out successfully');
+      setCheckoutConfirm(null);
+      fetchDashStats();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to checkout vehicle');
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   const openTickets = tickets.filter(t => t.status === 'open');
@@ -559,6 +575,36 @@ export default function Dashboard() {
                           {v.parked_at && <div className="text-[10px] text-zinc-600">{new Date(v.parked_at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</div>}
                         </div>
                       </div>
+                      {checkoutConfirm === v.id ? (
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            data-testid={`checkout-confirm-${v.id}`}
+                            onClick={() => handleCheckout(v.id)}
+                            disabled={checkoutLoading}
+                            className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                          >
+                            {checkoutLoading ? 'Processing...' : 'Confirm Checkout'}
+                          </Button>
+                          <Button
+                            data-testid={`checkout-cancel-${v.id}`}
+                            onClick={() => setCheckoutConfirm(null)}
+                            variant="ghost"
+                            className="h-8 text-xs text-zinc-400 hover:text-white"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          data-testid={`checkout-button-${v.id}`}
+                          onClick={() => setCheckoutConfirm(v.id)}
+                          variant="outline"
+                          className="mt-2 w-full h-8 text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1.5" />
+                          Checkout
+                        </Button>
+                      )}
                     </Card>
                   ))
                 ) : (

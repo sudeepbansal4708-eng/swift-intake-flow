@@ -797,6 +797,74 @@ class PushSubscription(BaseModel):
     subscription: dict
 
 
+@api_router.post("/admin/vehicles/{vehicle_id}/checkout")
+async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin manual checkout: mark vehicle as handed over, send WhatsApp thank-you"""
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Check if there's an active ticket for this vehicle
+    active_ticket = await db.tickets.find_one({
+        "vehicle_id": vehicle_id,
+        "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+    }, {"_id": 0})
+
+    if active_ticket:
+        # Complete the existing ticket
+        await db.tickets.update_one(
+            {"id": active_ticket['id']},
+            {"$set": {"status": "completed", "completed_at": now}}
+        )
+    else:
+        # Create a completed ticket for record-keeping
+        ticket_obj = Ticket(
+            vehicle_id=vehicle_id,
+            customer_phone=vehicle['phone_number'],
+            status="completed"
+        )
+        doc = ticket_obj.model_dump()
+        doc['created_at'] = now
+        doc['completed_at'] = now
+        doc['claimed_by'] = current_user['id']
+        doc['claimed_at'] = now
+        await db.tickets.insert_one(doc)
+
+    # Mark vehicle as checked out
+    await db.vehicles.update_one(
+        {"id": vehicle_id},
+        {"$set": {"status": "checked_out", "checked_out_at": now, "checked_out_by": current_user['id']}}
+    )
+
+    # Send WhatsApp thank-you message
+    if razorpay_client:
+        try:
+            payment_link = razorpay_client.payment_link.create({
+                "amount": 500,
+                "currency": "INR",
+                "description": "Tip for Valet Service",
+                "customer": {"contact": vehicle['phone_number']},
+                "notify": {"sms": False, "email": False},
+                "callback_url": f"{os.environ.get('BACKEND_URL', '')}/api/tips/callback",
+                "callback_method": "get"
+            })
+            message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out.\n\nIf you'd like to tip your valet:\n{payment_link['short_url']}"
+        except Exception as e:
+            logging.error(f"Razorpay error: {str(e)}")
+            message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
+    else:
+        message = f"🎉 Thank you for using SwiftValet!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
+
+    await send_whatsapp_message(vehicle['phone_number'], message)
+
+    return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
+
+
 @api_router.post("/push/subscribe")
 async def push_subscribe(data: PushSubscription, current_user: dict = Depends(get_current_user)):
     """Store a push subscription for the current user"""
