@@ -731,9 +731,23 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     
     elif status == "arrived":
         update_data['arrived_at'] = datetime.now(timezone.utc).isoformat()
-        message = "✅ Your car is at the entrance! We can hold it for 5 minutes."
+        message = "Your car is at the entrance! We can hold it for 5 minutes."
         await send_whatsapp_message(ticket['customer_phone'], message)
     
+    elif status == "returned":
+        now = datetime.now(timezone.utc).isoformat()
+        update_data['returned_at'] = now
+
+        # Reset vehicle back to active parking
+        await db.vehicles.update_one(
+            {"id": ticket['vehicle_id']},
+            {"$set": {"status": "parked"}}
+        )
+
+        message = ("Your car has been returned to parking as you did not arrive within 5 minutes. "
+                    "Please reply RETR or contact the valet desk when you are ready.")
+        await send_whatsapp_message(ticket['customer_phone'], message)
+
     elif status == "completed":
         update_data['completed_at'] = datetime.now(timezone.utc).isoformat()
         

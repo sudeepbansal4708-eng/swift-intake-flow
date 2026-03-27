@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation } from 'lucide-react';
+import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation, AlertTriangle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function TicketDetail() {
@@ -131,11 +131,17 @@ export default function TicketDetail() {
     );
   }
 
-  const statusSteps = [
-    { key: 'claimed', label: 'Claimed' },
-    { key: 'arrived', label: 'Arrived' },
-    { key: 'completed', label: 'Completed' }
-  ];
+  const statusSteps = ticket.status === 'returned'
+    ? [
+        { key: 'claimed', label: 'Claimed' },
+        { key: 'arrived', label: 'Arrived' },
+        { key: 'returned', label: 'Returned to Park' }
+      ]
+    : [
+        { key: 'claimed', label: 'Claimed' },
+        { key: 'arrived', label: 'Arrived' },
+        { key: 'completed', label: 'Completed' }
+      ];
 
   const currentStepIndex = statusSteps.findIndex(s => s.key === ticket.status);
 
@@ -257,14 +263,29 @@ export default function TicketDetail() {
         )}
 
         {ticket.status === 'arrived' && timer !== null && (
-          <Card className="bg-amber-950/20 backdrop-blur-md border border-amber-900/50 p-6 text-center">
-            <Clock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-            <div className="text-4xl font-bold text-amber-400 mb-2" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-              {formatTimer(timer)}
+          <Card className={`backdrop-blur-md p-6 text-center ${
+            timer === 0
+              ? 'bg-red-950/30 border border-red-800/50 animate-pulse'
+              : 'bg-amber-950/20 border border-amber-900/50'
+          }`}>
+            <Clock className={`w-12 h-12 mx-auto mb-3 ${timer === 0 ? 'text-red-400' : 'text-amber-400'}`} />
+            <div className={`text-4xl font-bold mb-2 ${timer === 0 ? 'text-red-400' : 'text-amber-400'}`} style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+              {timer === 0 ? 'TIME UP' : formatTimer(timer)}
             </div>
-            <div className="text-sm text-amber-400/70 uppercase tracking-wide">Time Remaining</div>
+            <div className={`text-sm uppercase tracking-wide ${timer === 0 ? 'text-red-400/70' : 'text-amber-400/70'}`}>
+              {timer === 0 ? 'Customer did not show up' : 'Waiting for customer'}
+            </div>
+            {timer > 0 && timer <= 60 && (
+              <div className="mt-2 flex items-center justify-center gap-1.5 text-amber-400 text-xs">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Less than a minute remaining
+              </div>
+            )}
             {timer === 0 && (
-              <p className="text-xs text-amber-400 mt-2">⚠️ Time's up! Consider extended hold or return to park.</p>
+              <div className="mt-3 p-2 bg-red-950/30 border border-red-800/30 rounded text-red-300 text-xs">
+                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                Ghosting protocol active — return the car to a parking spot
+              </div>
             )}
           </Card>
         )}
@@ -338,21 +359,45 @@ export default function TicketDetail() {
 
           {ticket.status === 'arrived' && !showReturnForm && (
             <>
-              <Button
-                data-testid="handover-button"
-                onClick={() => updateStatus('completed')}
-                className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-500/50"
-              >
-                ✅ HANDOVER COMPLETE
-              </Button>
-              <Button
-                data-testid="return-button"
-                onClick={() => setShowReturnForm(true)}
-                variant="outline"
-                className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-amber-700 text-amber-300 hover:bg-amber-950/20 hover:text-amber-200"
-              >
-                🔄 RETURN TO DIFFERENT SPOT
-              </Button>
+              {timer === 0 ? (
+                <>
+                  <Button
+                    data-testid="ghost-return-button"
+                    onClick={() => setShowReturnForm(true)}
+                    className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)] border border-red-500/50"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    RETURN TO PARK (GHOSTED)
+                  </Button>
+                  <Button
+                    data-testid="handover-button"
+                    onClick={() => updateStatus('completed')}
+                    variant="outline"
+                    className="w-full h-10 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-zinc-700 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300 text-sm"
+                  >
+                    Customer showed up — Complete Handover
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    data-testid="handover-button"
+                    onClick={() => updateStatus('completed')}
+                    className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-500/50"
+                  >
+                    HANDOVER COMPLETE
+                  </Button>
+                  <Button
+                    data-testid="return-button"
+                    onClick={() => setShowReturnForm(true)}
+                    variant="outline"
+                    className="w-full h-10 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-amber-700 text-amber-300 hover:bg-amber-950/20 hover:text-amber-200 text-sm"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    Return to different spot
+                  </Button>
+                </>
+              )}
             </>
           )}
 
