@@ -48,6 +48,12 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
   - Inline confirmation flow (Checkout → Confirm/Cancel)
   - Creates a completed ticket for record-keeping, sends WhatsApp thank-you message
   - Endpoint: POST /api/admin/vehicles/{vehicle_id}/checkout
+- **Shift Management** (NEW - Mar 27, 2026):
+  - Admin toggle to mark valets online/offline (Switch component on each valet card)
+  - Only online valets can park/retrieve vehicles (offline get 403)
+  - Valets can send "Request Online" to admin when offline
+  - Admin sees pending shift requests with Approve button
+  - Endpoints: PUT /api/admin/valets/{id}/toggle-online, POST /api/valet/request-online, GET /api/admin/online-requests
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
