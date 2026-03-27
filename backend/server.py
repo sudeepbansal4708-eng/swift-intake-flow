@@ -993,10 +993,10 @@ async def get_admin_dashboard_stats(current_user: dict = Depends(get_current_use
     valet_ids = [v['id'] for v in active_valets]
     team_ids = valet_ids + [current_user['id']]
 
-    # Parked vehicles (today, by this client's team)
+    # Parked vehicles (today, by this client's team, exclude checked out)
     parked_vehicles = []
     vehicles = await db.vehicles.find(
-        {"parked_by": {"$in": team_ids}, "parked_at": {"$gte": today_start}},
+        {"parked_by": {"$in": team_ids}, "parked_at": {"$gte": today_start}, "status": {"$ne": "checked_out"}},
         {"_id": 0}
     ).to_list(5000)
 
