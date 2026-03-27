@@ -54,6 +54,12 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
   - Valets can send "Request Online" to admin when offline
   - Admin sees pending shift requests with Approve button
   - Endpoints: PUT /api/admin/valets/{id}/toggle-online, POST /api/valet/request-online, GET /api/admin/online-requests
+- **Ghosting Protocol - Phase C** (NEW - Mar 27, 2026):
+  - 5-minute countdown timer starts when ticket status is "arrived"
+  - Timer card turns red with "TIME UP" when expired, "RETURN TO PARK (GHOSTED)" becomes primary action
+  - Valet can still complete handover if customer arrives late (secondary button)
+  - On return: vehicle status resets to "parked" (can be retrieved again), WhatsApp notification sent to customer
+  - Status flow: claimed → arrived (timer) → returned (ghosted) OR completed
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
