@@ -60,6 +60,12 @@ VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
 VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
 VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@parkaro.com')
 
+# WhatsApp Content Template SIDs
+WA_TEMPLATE_PARKING = os.environ.get('WA_TEMPLATE_PARKING', '')
+WA_TEMPLATE_ARRIVED = os.environ.get('WA_TEMPLATE_ARRIVED', '')
+WA_TEMPLATE_RETRIEVAL = os.environ.get('WA_TEMPLATE_RETRIEVAL', '')
+WA_TEMPLATE_RETURNED = os.environ.get('WA_TEMPLATE_RETURNED', '')
+
 # Create the main app
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -201,8 +207,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-async def send_whatsapp_message(phone_number: str, message: str):
-    """Send WhatsApp message via Twilio API"""
+async def send_whatsapp_message(phone_number: str, message: str, content_sid: str = None, content_variables: dict = None):
+    """Send WhatsApp message via Twilio API using content templates or fallback to free-form"""
     if not twilio_client or not TWILIO_WHATSAPP_FROM:
         logging.warning(f"Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
         return {"status": "not_configured", "message": "Twilio WhatsApp credentials not set"}
@@ -211,17 +217,23 @@ async def send_whatsapp_message(phone_number: str, message: str):
         to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
         from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
         
-        logging.info("Attempting to send WhatsApp message...")
-        logging.info(f"   From: {from_whatsapp}")
-        logging.info(f"   To: {to_whatsapp}")
+        logging.info(f"Sending WhatsApp: From={from_whatsapp} To={to_whatsapp}")
         
-        twilio_message = twilio_client.messages.create(
-            body=message,
-            from_=from_whatsapp,
-            to=to_whatsapp
-        )
+        msg_params = {
+            "from_": from_whatsapp,
+            "to": to_whatsapp
+        }
         
-        logging.info(f"WhatsApp message sent: SID={twilio_message.sid}")
+        if content_sid:
+            msg_params["content_sid"] = content_sid
+            if content_variables:
+                msg_params["content_variables"] = json.dumps(content_variables)
+        else:
+            msg_params["body"] = message
+        
+        twilio_message = twilio_client.messages.create(**msg_params)
+        
+        logging.info(f"WhatsApp message sent: SID={twilio_message.sid}, Status={twilio_message.status}")
         
         return {
             "status": "sent",
@@ -457,12 +469,15 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
     client_name = valet.get('client_name', 'ParKaro') if valet else 'ParKaro'
     
-    location_info = f"Zone: {vehicle_obj.zone_label}" if vehicle_obj.zone_label else "Location saved"
-    tag_info = f"\n🏷️ Tag Number: {vehicle_obj.tag_number}" if vehicle_obj.tag_number else ""
+    location_info = vehicle_obj.zone_label or "Location saved"
     
-    message = f"🚗 Welcome to {client_name}!\n\nYour vehicle (Plate: {vehicle_obj.license_plate}) is safely parked.\n{location_info}{tag_info}\n\nReply 'RETR' when you're ready to retrieve your car."
+    message = f"Your car {vehicle_obj.license_plate} has been parked at {location_info} by our valet team. Reply RETR when you're ready to pick it up."
     
-    whatsapp_result = await send_whatsapp_message(vehicle_obj.phone_number, message)
+    whatsapp_result = await send_whatsapp_message(
+        vehicle_obj.phone_number, message,
+        content_sid=WA_TEMPLATE_PARKING,
+        content_variables={"1": vehicle_obj.license_plate, "2": location_info}
+    )
     print(f"🔔 WHATSAPP RESULT: {whatsapp_result}")
     
     return {"vehicle": vehicle_obj.model_dump(), "message": "Vehicle parked successfully"}
@@ -596,8 +611,12 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     await notify_team_of_retrieval(vehicle, ticket_obj.id)
 
     # Send WhatsApp notification to customer
-    message = f"🔔 Great news! Valet {current_user['name']} is retrieving your car ({vehicle['license_plate']})."
-    await send_whatsapp_message(phone, message)
+    message = f"Your car {vehicle['license_plate']} is being retrieved by valet {current_user['name']}."
+    await send_whatsapp_message(
+        phone, message,
+        content_sid=WA_TEMPLATE_RETRIEVAL,
+        content_variables={"1": vehicle['license_plate'], "2": current_user['name']}
+    )
 
     # Build clean response without _id
     ticket_response = {
@@ -712,8 +731,12 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Ticket already claimed")
     
-    message = f"🔔 Great news! Valet {current_user['name']} is preparing to fetch your car."
-    await send_whatsapp_message(ticket['customer_phone'], message)
+    message = f"Your car {vehicle.get('license_plate', '')} is being retrieved by valet {current_user['name']}."
+    await send_whatsapp_message(
+        ticket['customer_phone'], message,
+        content_sid=WA_TEMPLATE_RETRIEVAL,
+        content_variables={"1": vehicle.get('license_plate', 'your car'), "2": current_user['name']}
+    )
     
     return {"message": "Ticket claimed"}
 
@@ -723,16 +746,28 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
+    # Get vehicle info for template variables
+    vehicle = await db.vehicles.find_one({"id": ticket.get('vehicle_id')}, {"_id": 0})
+    plate = vehicle.get('license_plate', 'your car') if vehicle else 'your car'
+    
     update_data = {"status": status}
     
     if status == "en_route":
-        message = f"🚗 Valet {current_user['name']} is on the way to fetch your car!"
-        await send_whatsapp_message(ticket['customer_phone'], message)
+        message = f"Your car {plate} is being retrieved by valet {current_user['name']}."
+        await send_whatsapp_message(
+            ticket['customer_phone'], message,
+            content_sid=WA_TEMPLATE_RETRIEVAL,
+            content_variables={"1": plate, "2": current_user['name']}
+        )
     
     elif status == "arrived":
         update_data['arrived_at'] = datetime.now(timezone.utc).isoformat()
-        message = "Your car is at the entrance! We can hold it for 5 minutes."
-        await send_whatsapp_message(ticket['customer_phone'], message)
+        message = f"Your car {plate} is at the entrance! We can hold it for 5 minutes. Please come to the pickup area."
+        await send_whatsapp_message(
+            ticket['customer_phone'], message,
+            content_sid=WA_TEMPLATE_ARRIVED,
+            content_variables={"1": plate}
+        )
     
     elif status == "returned":
         now = datetime.now(timezone.utc).isoformat()
@@ -744,9 +779,12 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "parked"}}
         )
 
-        message = ("Your car has been returned to parking as you did not arrive within 5 minutes. "
-                    "Please reply RETR or contact the valet desk when you are ready.")
-        await send_whatsapp_message(ticket['customer_phone'], message)
+        message = f"Your car {plate} has been returned to parking as you did not arrive within 5 minutes. Please contact the valet desk when you are ready."
+        await send_whatsapp_message(
+            ticket['customer_phone'], message,
+            content_sid=WA_TEMPLATE_RETURNED,
+            content_variables={"1": plate}
+        )
 
     elif status == "completed":
         update_data['completed_at'] = datetime.now(timezone.utc).isoformat()
@@ -757,31 +795,8 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "checked_out", "checked_out_at": update_data['completed_at']}}
         )
         
-        # Generate tip payment link
-        if razorpay_client:
-            try:
-                payment_link = razorpay_client.payment_link.create({
-                    "amount": 500,
-                    "currency": "INR",
-                    "description": "Tip for Valet Service",
-                    "customer": {
-                        "contact": ticket['customer_phone']
-                    },
-                    "notify": {
-                        "sms": False,
-                        "email": False
-                    },
-                    "callback_url": f"{os.environ.get('BACKEND_URL', '')}/api/tips/callback",
-                    "callback_method": "get"
-                })
-                
-                message = f"🎉 Thank you for using ParKaro!\n\nIf you'd like to tip your valet, you can do so here:\n{payment_link['short_url']}\n\nPreset amounts: ₹50, ₹100, ₹200 or custom."
-            except Exception as e:
-                logging.error(f"Razorpay error: {str(e)}")
-                message = "🎉 Thank you for using ParKaro! Your feedback means a lot to us."
-        else:
-            message = "🎉 Thank you for using ParKaro!"
-        
+        # Send thank you (free-form within 24hr window since customer interacted)
+        message = "Thank you for using ParKaro! We hope you had a great experience."
         await send_whatsapp_message(ticket['customer_phone'], message)
     
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
@@ -872,25 +887,8 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         {"$set": {"status": "checked_out", "checked_out_at": now, "checked_out_by": current_user['id']}}
     )
 
-    # Send WhatsApp thank-you message
-    if razorpay_client:
-        try:
-            payment_link = razorpay_client.payment_link.create({
-                "amount": 500,
-                "currency": "INR",
-                "description": "Tip for Valet Service",
-                "customer": {"contact": vehicle['phone_number']},
-                "notify": {"sms": False, "email": False},
-                "callback_url": f"{os.environ.get('BACKEND_URL', '')}/api/tips/callback",
-                "callback_method": "get"
-            })
-            message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out.\n\nIf you'd like to tip your valet:\n{payment_link['short_url']}"
-        except Exception as e:
-            logging.error(f"Razorpay error: {str(e)}")
-            message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
-    else:
-        message = f"🎉 Thank you for using ParKaro!\n\nYour vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
-
+    # Send WhatsApp thank-you message (free-form within conversation window)
+    message = f"Thank you for using ParKaro! Your vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
     await send_whatsapp_message(vehicle['phone_number'], message)
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
