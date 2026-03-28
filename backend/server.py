@@ -65,6 +65,7 @@ WA_TEMPLATE_PARKING = os.environ.get('WA_TEMPLATE_PARKING', '')
 WA_TEMPLATE_ARRIVED = os.environ.get('WA_TEMPLATE_ARRIVED', '')
 WA_TEMPLATE_RETRIEVAL = os.environ.get('WA_TEMPLATE_RETRIEVAL', '')
 WA_TEMPLATE_RETURNED = os.environ.get('WA_TEMPLATE_RETURNED', '')
+WA_TEMPLATE_TIP = os.environ.get('WA_TEMPLATE_TIP', '')
 
 # Create the main app
 app = FastAPI()
@@ -795,9 +796,15 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "checked_out", "checked_out_at": update_data['completed_at']}}
         )
         
-        # Send thank you (free-form within 24hr window since customer interacted)
-        message = "Thank you for using ParKaro! We hope you had a great experience."
-        await send_whatsapp_message(ticket['customer_phone'], message)
+        # Send tipping message with valet name
+        valet_name = current_user.get('name', 'your valet')
+        tip_link = "https://pay.parkaro.com/tip/coming-soon"
+        message = f"Thank you for parking with the Valet Guys! Please show your appreciation by tipping your valet {valet_name} here: {tip_link}"
+        await send_whatsapp_message(
+            ticket['customer_phone'], message,
+            content_sid=WA_TEMPLATE_TIP,
+            content_variables={"1": valet_name, "2": tip_link}
+        )
     
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
     
@@ -887,9 +894,15 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         {"$set": {"status": "checked_out", "checked_out_at": now, "checked_out_by": current_user['id']}}
     )
 
-    # Send WhatsApp thank-you message (free-form within conversation window)
-    message = f"Thank you for using ParKaro! Your vehicle ({vehicle['license_plate']}) has been checked out. We hope you had a great experience!"
-    await send_whatsapp_message(vehicle['phone_number'], message)
+    # Send WhatsApp tipping message
+    valet_name = current_user.get('name', 'your valet')
+    tip_link = "https://pay.parkaro.com/tip/coming-soon"
+    message = f"Thank you for parking with the Valet Guys! Please show your appreciation by tipping your valet {valet_name} here: {tip_link}"
+    await send_whatsapp_message(
+        vehicle['phone_number'], message,
+        content_sid=WA_TEMPLATE_TIP,
+        content_variables={"1": valet_name, "2": tip_link}
+    )
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
 
