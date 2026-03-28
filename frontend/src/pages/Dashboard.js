@@ -140,12 +140,20 @@ export default function Dashboard() {
     setRetrieveLoading(true);
     try {
       const res = await axios.post(`${API}/tickets/retrieve`, { phone_number: retrievePhone.trim() });
-      toast.success('Retrieval ticket created!');
-      setShowRetrieveModal(false);
-      setRetrievePhone('');
-      setLookupResult(null);
-      fetchTickets();
-      navigate(`/ticket/${res.data.ticket.id}`);
+      if (res.data.pending_payment) {
+        toast.info(`Payment of Rs.${res.data.ticket.valet_fee} requested from customer`);
+        setShowRetrieveModal(false);
+        setRetrievePhone('');
+        setLookupResult(null);
+        fetchTickets();
+      } else {
+        toast.success('Retrieval ticket created!');
+        setShowRetrieveModal(false);
+        setRetrievePhone('');
+        setLookupResult(null);
+        fetchTickets();
+        navigate(`/ticket/${res.data.ticket.id}`);
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create retrieval ticket');
     } finally {

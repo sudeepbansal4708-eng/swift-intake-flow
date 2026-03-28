@@ -66,6 +66,7 @@ WA_TEMPLATE_ARRIVED = os.environ.get('WA_TEMPLATE_ARRIVED', '')
 WA_TEMPLATE_RETRIEVAL = os.environ.get('WA_TEMPLATE_RETRIEVAL', '')
 WA_TEMPLATE_RETURNED = os.environ.get('WA_TEMPLATE_RETURNED', '')
 WA_TEMPLATE_TIP = os.environ.get('WA_TEMPLATE_TIP', '')
+WA_TEMPLATE_FEE = os.environ.get('WA_TEMPLATE_FEE', '')
 
 # Create the main app
 app = FastAPI()
@@ -84,6 +85,7 @@ class TicketStatus(str):
     ARRIVED = "arrived"
     COMPLETED = "completed"
     RETURNED = "returned"
+    PENDING_PAYMENT = "pending_payment"
 
 class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -310,6 +312,29 @@ async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
     for member in team_members:
         await send_push_notification(member["id"], title, body, data)
 
+
+async def get_client_valet_fee(client_id: str) -> float:
+    """Get the valet fee for a client. Returns 0 if not set."""
+    if not client_id:
+        return 0
+    admin = await db.users.find_one(
+        {"client_id": client_id, "role": "admin", "is_active": True},
+        {"_id": 0, "valet_fee": 1}
+    )
+    return admin.get("valet_fee", 0) if admin else 0
+
+
+async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
+    """Send a WhatsApp payment request for valet fee before retrieval"""
+    fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
+    payment_link = f"https://pay.parkaro.com/fee/{vehicle_id}"
+    message = f"Your valet parking fee at {client_name} is {fee_str}. Please complete your payment here: {payment_link} to proceed with vehicle retrieval."
+    await send_whatsapp_message(
+        phone, message,
+        content_sid=WA_TEMPLATE_FEE,
+        content_variables={"1": client_name, "2": fee_str, "3": payment_link}
+    )
+
 # Routes
 @api_router.post("/auth/register")
 async def register(user_data: UserCreate):
@@ -373,7 +398,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "client_name": current_user.get('client_name'),
         "client_id": current_user.get('client_id'),
         "profile_photo": current_user.get('profile_photo'),
-        "is_online": current_user.get('is_online', False)
+        "is_online": current_user.get('is_online', False),
+        "valet_fee": current_user.get('valet_fee', 0)
     }
 
 @api_router.post("/auth/otp/request")
@@ -589,10 +615,53 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     # Check for existing active ticket
     existing = await db.tickets.find_one({
         "vehicle_id": vehicle['id'],
-        "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+        "status": {"$in": ["open", "claimed", "en_route", "arrived", "pending_payment"]}
     })
     if existing:
         raise HTTPException(status_code=400, detail="A retrieval ticket already exists for this vehicle")
+
+    # Check if client charges a valet fee
+    client_id = current_user.get('client_id')
+    valet_fee = await get_client_valet_fee(client_id)
+
+    if valet_fee > 1:
+        # Create a pending_payment ticket — customer must pay first
+        client_name = current_user.get('client_name', 'ParKaro')
+        now = datetime.now(timezone.utc)
+        ticket_obj = Ticket(
+            vehicle_id=vehicle['id'],
+            customer_phone=phone,
+            status="pending_payment"
+        )
+        doc = ticket_obj.model_dump()
+        doc['created_at'] = now.isoformat()
+        doc['claimed_by'] = current_user['id']
+        doc['claimed_at'] = now.isoformat()
+        doc['valet_fee'] = valet_fee
+        await db.tickets.insert_one(doc)
+
+        await send_fee_payment_request(phone, client_name, valet_fee, vehicle['id'])
+
+        ticket_response = {
+            "id": ticket_obj.id,
+            "vehicle_id": vehicle['id'],
+            "customer_phone": phone,
+            "status": "pending_payment",
+            "valet_fee": valet_fee,
+            "claimed_by": current_user['id'],
+            "created_at": doc['created_at'],
+            "vehicle": {
+                "license_plate": vehicle.get("license_plate"),
+                "tag_number": vehicle.get("tag_number"),
+                "zone_label": vehicle.get("zone_label"),
+                "phone_number": vehicle.get("phone_number"),
+            }
+        }
+        return {
+            "ticket": ticket_response,
+            "message": f"Payment of Rs.{valet_fee:.0f} requested. Retrieval will begin after payment.",
+            "pending_payment": True
+        }
 
     now = datetime.now(timezone.utc)
     ticket_obj = Ticket(
@@ -1041,9 +1110,10 @@ async def get_online_requests(current_user: dict = Depends(get_current_user)):
 async def update_admin_profile(
     name: Optional[str] = None,
     client_name: Optional[str] = None,
+    valet_fee: Optional[float] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update admin profile (name and client name)"""
+    """Update admin profile (name, client name, valet fee)"""
     if current_user['role'] != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
     
@@ -1052,6 +1122,8 @@ async def update_admin_profile(
         update_data['name'] = name
     if client_name:
         update_data['client_name'] = client_name
+    if valet_fee is not None:
+        update_data['valet_fee'] = valet_fee
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
@@ -1071,7 +1143,7 @@ async def update_admin_profile(
             {"$set": {"client_name": client_name}}
         )
     
-    return {"message": "Profile updated successfully", "name": name, "client_name": client_name}
+    return {"message": "Profile updated successfully", "name": name, "client_name": client_name, "valet_fee": valet_fee}
 
 @api_router.post("/admin/profile/photo")
 async def upload_profile_photo(
@@ -1672,23 +1744,47 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     
     if message_lower in ['retr', 'retrieve', 'get car', 'ready']:
         # Find vehicle by phone
-        vehicle = await db.vehicles.find_one({"phone_number": phone_number}, {"_id": 0})
+        vehicle = await db.vehicles.find_one(
+            {"phone_number": phone_number, "status": {"$ne": "checked_out"}},
+            {"_id": 0},
+            sort=[("parked_at", -1)]
+        )
         if not vehicle:
-            print(f"❌ No vehicle found for {phone_number}")
             return {"reply": "Sorry, we couldn't find your vehicle. Please contact support."}
-        
-        print(f"✅ Found vehicle: {vehicle['license_plate']}")
         
         # Check if ticket already exists
         existing_ticket = await db.tickets.find_one({
             "vehicle_id": vehicle['id'],
-            "status": {"$in": ["open", "claimed", "en_route", "arrived"]}
+            "status": {"$in": ["open", "claimed", "en_route", "arrived", "pending_payment"]}
         })
         
         if existing_ticket:
+            if existing_ticket.get('status') == 'pending_payment':
+                return {"reply": "Your retrieval is pending payment. Please complete the payment to proceed."}
             return {"reply": "Your retrieval request is already in progress. A valet will be with you shortly!"}
         
-        # Create new ticket
+        # Check if client charges a valet fee
+        parker = await db.users.find_one({"id": vehicle.get("parked_by")}, {"_id": 0})
+        client_id = parker.get("client_id") if parker else None
+        valet_fee = await get_client_valet_fee(client_id) if client_id else 0
+
+        if valet_fee > 1:
+            # Create pending_payment ticket
+            client_name = parker.get("client_name", "ParKaro") if parker else "ParKaro"
+            ticket_obj = Ticket(
+                vehicle_id=vehicle['id'],
+                customer_phone=phone_number,
+                status="pending_payment"
+            )
+            doc = ticket_obj.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            doc['valet_fee'] = valet_fee
+            await db.tickets.insert_one(doc)
+
+            await send_fee_payment_request(phone_number, client_name, valet_fee, vehicle['id'])
+            return {"reply": f"Your valet parking fee is Rs.{valet_fee:.0f}. A payment link has been sent. Please complete payment to proceed with retrieval."}
+
+        # No fee — create ticket directly
         ticket_obj = Ticket(
             vehicle_id=vehicle['id'],
             customer_phone=phone_number,
@@ -1702,9 +1798,7 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
         # Send push notifications to team
         await notify_team_of_retrieval(vehicle, ticket_obj.id)
         
-        print(f"Created retrieval ticket for vehicle {vehicle['license_plate']}")
-        
-        return {"reply": "🚗 Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
+        return {"reply": "Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
     
     return {"reply": "Hi! Reply 'RETR' when you're ready to retrieve your car."}
 
