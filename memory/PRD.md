@@ -60,6 +60,16 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
   - Valet can still complete handover if customer arrives late (secondary button)
   - On return: vehicle status resets to "parked" (can be retrieved again), WhatsApp notification sent to customer
   - Status flow: claimed → arrived (timer) → returned (ghosted) OR completed
+- **Valet Parking Fee & Payment Gate** (NEW - Mar 28, 2026):
+  - Admin can set valet parking fee in profile settings (Rs. amount)
+  - If fee > Rs.1, retrieval creates a "pending_payment" ticket and sends WhatsApp payment request to customer
+  - If fee = 0 or 1, retrieval proceeds directly (no payment gate)
+  - WhatsApp template `valet_fee_payment` for payment requests
+  - Dummy payment link for now (https://pay.parkaro.com/fee/{id})
+- **WhatsApp Content Templates** (NEW - Mar 28, 2026):
+  - Migrated from free-form to approved Meta templates for all message types
+  - Templates: parking_confirmation, car_retrieval_v4, car_arrived, car_returned, valet_tip_v2, valet_fee_payment
+  - Production WhatsApp sender: +16562593936
 
 ## Key API Endpoints
 - `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
