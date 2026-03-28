@@ -612,11 +612,12 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     await notify_team_of_retrieval(vehicle, ticket_obj.id)
 
     # Send WhatsApp notification to customer
-    message = f"Your car {vehicle['license_plate']} is being retrieved by valet {current_user['name']}."
+    client_name = current_user.get('client_name', 'ParKaro')
+    message = f"We hope you had a great time at {client_name}. Your car {vehicle['license_plate']} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
     await send_whatsapp_message(
         phone, message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
-        content_variables={"1": vehicle['license_plate'], "2": current_user['name']}
+        content_variables={"1": vehicle['license_plate'], "2": current_user['name'], "3": client_name}
     )
 
     # Build clean response without _id
@@ -732,11 +733,12 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Ticket already claimed")
     
-    message = f"Your car {vehicle.get('license_plate', '')} is being retrieved by valet {current_user['name']}."
+    client_name = current_user.get('client_name', 'ParKaro')
+    message = f"We hope you had a great time at {client_name}. Your car {vehicle.get('license_plate', 'your car')} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
     await send_whatsapp_message(
         ticket['customer_phone'], message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
-        content_variables={"1": vehicle.get('license_plate', 'your car'), "2": current_user['name']}
+        content_variables={"1": vehicle.get('license_plate', 'your car'), "2": current_user['name'], "3": client_name}
     )
     
     return {"message": "Ticket claimed"}
@@ -754,11 +756,12 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     update_data = {"status": status}
     
     if status == "en_route":
-        message = f"Your car {plate} is being retrieved by valet {current_user['name']}."
+        client_name = current_user.get('client_name', 'ParKaro')
+        message = f"We hope you had a great time at {client_name}. Your car {plate} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_RETRIEVAL,
-            content_variables={"1": plate, "2": current_user['name']}
+            content_variables={"1": plate, "2": current_user['name'], "3": client_name}
         )
     
     elif status == "arrived":
