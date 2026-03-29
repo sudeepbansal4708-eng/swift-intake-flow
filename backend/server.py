@@ -750,7 +750,24 @@ async def get_tickets(status: Optional[str] = None, current_user: dict = Depends
     query = {}
     if status:
         query['status'] = status
-    
+
+    # Filter tickets by client: only show tickets for vehicles parked by this client's team
+    client_id = current_user.get('client_id')
+    if client_id and current_user['role'] in ['valet', 'admin']:
+        team = await db.users.find(
+            {"client_id": client_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        ).to_list(500)
+        team_ids = [t['id'] for t in team]
+
+        # Get vehicle IDs parked by this team
+        team_vehicles = await db.vehicles.find(
+            {"parked_by": {"$in": team_ids}},
+            {"_id": 0, "id": 1}
+        ).to_list(5000)
+        team_vehicle_ids = [v['id'] for v in team_vehicles]
+        query['vehicle_id'] = {"$in": team_vehicle_ids}
+
     tickets = await db.tickets.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
     # Batch fetch all vehicles to avoid N+1 query pattern
