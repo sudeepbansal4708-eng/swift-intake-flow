@@ -951,6 +951,14 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
 
     now = datetime.now(timezone.utc).isoformat()
 
+    # Block checkout if payment is pending
+    pending_ticket = await db.tickets.find_one({
+        "vehicle_id": vehicle_id,
+        "status": "pending_payment"
+    }, {"_id": 0})
+    if pending_ticket:
+        raise HTTPException(status_code=400, detail="Cannot checkout — valet fee payment is still pending from the customer")
+
     # Check if there's an active ticket for this vehicle
     active_ticket = await db.tickets.find_one({
         "vehicle_id": vehicle_id,
