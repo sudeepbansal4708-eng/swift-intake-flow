@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi.responses import Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1709,7 +1710,7 @@ async def export_reporting_csv(current_user: dict = Depends(get_current_user)):
 @api_router.post("/whatsapp/webhook")
 async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     """Handle incoming SMS/WhatsApp messages from Twilio
-    Twilio sends form data with 'From' and 'Body' fields
+    Returns TwiML XML response as Twilio expects
     """
     # Remove whatsapp: prefix if present (handles both SMS and WhatsApp inbound)
     phone_number = From.replace('whatsapp:', '').strip()
@@ -1722,6 +1723,8 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     message_lower = message.lower()
     
     logging.info(f"Received inbound message from {phone_number}: {message}")
+
+    reply_text = ""
     
     if message_lower in ['retr', 'retrieve', 'get car', 'ready']:
         # Find vehicle by phone
@@ -1731,57 +1734,62 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
             sort=[("parked_at", -1)]
         )
         if not vehicle:
-            return {"reply": "Sorry, we couldn't find your vehicle. Please contact support."}
-        
-        # Check if ticket already exists
-        existing_ticket = await db.tickets.find_one({
-            "vehicle_id": vehicle['id'],
-            "status": {"$in": ["open", "claimed", "en_route", "arrived", "pending_payment"]}
-        })
-        
-        if existing_ticket:
-            if existing_ticket.get('status') == 'pending_payment':
-                return {"reply": "Your retrieval is pending payment. Please complete the payment to proceed."}
-            return {"reply": "Your retrieval request is already in progress. A valet will be with you shortly!"}
-        
-        # Check if client charges a valet fee
-        parker = await db.users.find_one({"id": vehicle.get("parked_by")}, {"_id": 0})
-        client_id = parker.get("client_id") if parker else None
-        valet_fee = await get_client_valet_fee(client_id) if client_id else 0
+            reply_text = "Sorry, we couldn't find your vehicle. Please contact support."
+        else:
+            # Check if ticket already exists
+            existing_ticket = await db.tickets.find_one({
+                "vehicle_id": vehicle['id'],
+                "status": {"$in": ["open", "claimed", "en_route", "arrived", "pending_payment"]}
+            })
+            
+            if existing_ticket:
+                if existing_ticket.get('status') == 'pending_payment':
+                    reply_text = "Your retrieval is pending payment. Please complete the payment to proceed."
+                else:
+                    reply_text = "Your retrieval request is already in progress. A valet will be with you shortly!"
+            else:
+                # Check if client charges a valet fee
+                parker = await db.users.find_one({"id": vehicle.get("parked_by")}, {"_id": 0})
+                client_id = parker.get("client_id") if parker else None
+                valet_fee = await get_client_valet_fee(client_id) if client_id else 0
 
-        if valet_fee > 1:
-            # Create pending_payment ticket
-            client_name = parker.get("client_name", "ParKaro") if parker else "ParKaro"
-            ticket_obj = Ticket(
-                vehicle_id=vehicle['id'],
-                customer_phone=phone_number,
-                status="pending_payment"
-            )
-            doc = ticket_obj.model_dump()
-            doc['created_at'] = doc['created_at'].isoformat()
-            doc['valet_fee'] = valet_fee
-            await db.tickets.insert_one(doc)
+                if valet_fee > 1:
+                    # Create pending_payment ticket
+                    client_name = parker.get("client_name", "ParKaro") if parker else "ParKaro"
+                    ticket_obj = Ticket(
+                        vehicle_id=vehicle['id'],
+                        customer_phone=phone_number,
+                        status="pending_payment"
+                    )
+                    doc = ticket_obj.model_dump()
+                    doc['created_at'] = doc['created_at'].isoformat()
+                    doc['valet_fee'] = valet_fee
+                    await db.tickets.insert_one(doc)
 
-            await send_fee_payment_request(phone_number, client_name, valet_fee, vehicle['id'])
-            return {"reply": f"Your valet parking fee is Rs.{valet_fee:.0f}. A payment link has been sent. Please complete payment to proceed with retrieval."}
+                    await send_fee_payment_request(phone_number, client_name, valet_fee, vehicle['id'])
+                    reply_text = f"Your valet parking fee is Rs.{valet_fee:.0f}. A payment link has been sent. Please complete payment to proceed with retrieval."
+                else:
+                    # No fee — create ticket directly
+                    ticket_obj = Ticket(
+                        vehicle_id=vehicle['id'],
+                        customer_phone=phone_number,
+                        status="open"
+                    )
+                    
+                    doc = ticket_obj.model_dump()
+                    doc['created_at'] = doc['created_at'].isoformat()
+                    await db.tickets.insert_one(doc)
+                    
+                    # Send push notifications to team
+                    await notify_team_of_retrieval(vehicle, ticket_obj.id)
+                    
+                    reply_text = "Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"
+    else:
+        reply_text = "Hi! Reply RETR when you're ready to retrieve your car."
 
-        # No fee — create ticket directly
-        ticket_obj = Ticket(
-            vehicle_id=vehicle['id'],
-            customer_phone=phone_number,
-            status="open"
-        )
-        
-        doc = ticket_obj.model_dump()
-        doc['created_at'] = doc['created_at'].isoformat()
-        await db.tickets.insert_one(doc)
-        
-        # Send push notifications to team
-        await notify_team_of_retrieval(vehicle, ticket_obj.id)
-        
-        return {"reply": "Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
-    
-    return {"reply": "Hi! Reply 'RETR' when you're ready to retrieve your car."}
+    # Return TwiML response (XML format that Twilio expects)
+    twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{reply_text}</Message></Response>'
+    return Response(content=twiml, media_type="application/xml")
 
 
 @api_router.delete("/admin/cleanup-data")
