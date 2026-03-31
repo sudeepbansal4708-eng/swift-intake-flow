@@ -66,7 +66,7 @@ WA_TEMPLATE_ARRIVED = os.environ.get('WA_TEMPLATE_ARRIVED', '')
 WA_TEMPLATE_RETRIEVAL = os.environ.get('WA_TEMPLATE_RETRIEVAL', '')
 WA_TEMPLATE_RETURNED = os.environ.get('WA_TEMPLATE_RETURNED', '')
 WA_TEMPLATE_TIP = os.environ.get('WA_TEMPLATE_TIP', '')
-WA_TEMPLATE_FEE = os.environ.get('WA_TEMPLATE_FEE', '')
+MESSAGING_MODE = os.environ.get('MESSAGING_MODE', 'sms')  # 'sms' or 'whatsapp'
 
 # Create the main app
 app = FastAPI()
@@ -211,40 +211,35 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def send_whatsapp_message(phone_number: str, message: str, content_sid: str = None, content_variables: dict = None):
-    """Send WhatsApp message via Twilio API using content templates or fallback to free-form"""
+    """Send message via SMS or WhatsApp depending on MESSAGING_MODE"""
     if not twilio_client or not TWILIO_WHATSAPP_FROM:
-        logging.warning(f"Twilio WhatsApp not configured. Would send to {phone_number}: {message}")
-        return {"status": "not_configured", "message": "Twilio WhatsApp credentials not set"}
+        logging.warning(f"Twilio not configured. Would send to {phone_number}: {message}")
+        return {"status": "not_configured", "message": "Twilio credentials not set"}
     
     try:
-        to_whatsapp = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
-        from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
-        
-        logging.info(f"Sending WhatsApp: From={from_whatsapp} To={to_whatsapp}")
-        
-        msg_params = {
-            "from_": from_whatsapp,
-            "to": to_whatsapp
-        }
-        
-        if content_sid:
-            msg_params["content_sid"] = content_sid
-            if content_variables:
-                msg_params["content_variables"] = json.dumps(content_variables)
+        if MESSAGING_MODE == 'whatsapp':
+            to_addr = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
+            from_addr = f"whatsapp:{TWILIO_WHATSAPP_FROM}" if not TWILIO_WHATSAPP_FROM.startswith("whatsapp:") else TWILIO_WHATSAPP_FROM
+            msg_params = {"from_": from_addr, "to": to_addr}
+            if content_sid:
+                msg_params["content_sid"] = content_sid
+                if content_variables:
+                    msg_params["content_variables"] = json.dumps(content_variables)
+            else:
+                msg_params["body"] = message
         else:
-            msg_params["body"] = message
+            # SMS mode — plain text, no templates
+            to_addr = phone_number
+            from_addr = TWILIO_WHATSAPP_FROM
+            msg_params = {"from_": from_addr, "to": to_addr, "body": message}
         
+        logging.info(f"Sending {MESSAGING_MODE.upper()}: From={from_addr} To={to_addr}")
         twilio_message = twilio_client.messages.create(**msg_params)
+        logging.info(f"Message sent: SID={twilio_message.sid}, Status={twilio_message.status}")
         
-        logging.info(f"WhatsApp message sent: SID={twilio_message.sid}, Status={twilio_message.status}")
-        
-        return {
-            "status": "sent",
-            "message_sid": twilio_message.sid,
-            "twilio_status": twilio_message.status
-        }
+        return {"status": "sent", "message_sid": twilio_message.sid, "twilio_status": twilio_message.status}
     except Exception as e:
-        logging.error(f"Twilio WhatsApp send error: {str(e)}")
+        logging.error(f"Twilio send error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
