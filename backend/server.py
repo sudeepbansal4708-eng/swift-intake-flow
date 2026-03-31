@@ -320,15 +320,11 @@ async def get_client_valet_fee(client_id: str) -> float:
 
 
 async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
-    """Send a WhatsApp payment request for valet fee before retrieval"""
+    """Send an SMS payment request for valet fee before retrieval"""
     fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
     payment_link = f"https://pay.parkaro.com/fee/{vehicle_id}"
-    message = f"Your valet parking fee at {client_name} is {fee_str}. Please complete your payment here: {payment_link} to proceed with vehicle retrieval."
-    await send_whatsapp_message(
-        phone, message,
-        content_sid=WA_TEMPLATE_FEE,
-        content_variables={"1": client_name, "2": fee_str, "3": payment_link}
-    )
+    message = f"ParKaro ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment here: {payment_link} to proceed with vehicle retrieval."
+    await send_whatsapp_message(phone, message)
 
 # Routes
 @api_router.post("/auth/register")
@@ -484,23 +480,16 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     
     await db.vehicles.insert_one(doc)
     
-    # Send WhatsApp notification with client branding
-    print(f"🔔 PREPARING TO SEND WHATSAPP to {vehicle_obj.phone_number}")
-    
-    # Get client name from the valet who parked it
+    # Send SMS notification with client branding
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
     client_name = valet.get('client_name', 'ParKaro') if valet else 'ParKaro'
     
     location_info = vehicle_obj.zone_label or "Location saved"
     
-    message = f"Your car {vehicle_obj.license_plate} has been parked at {location_info} by our valet team. Reply RETR when you're ready to pick it up."
+    message = f"ParKaro ({client_name}): Your car {vehicle_obj.license_plate} has been parked at {location_info} by our valet team. Reply RETR when you're ready to pick it up."
     
-    whatsapp_result = await send_whatsapp_message(
-        vehicle_obj.phone_number, message,
-        content_sid=WA_TEMPLATE_PARKING,
-        content_variables={"1": vehicle_obj.license_plate, "2": location_info}
-    )
-    print(f"🔔 WHATSAPP RESULT: {whatsapp_result}")
+    sms_result = await send_whatsapp_message(vehicle_obj.phone_number, message)
+    logging.info(f"SMS result for {vehicle_obj.phone_number}: {sms_result}")
     
     return {"vehicle": vehicle_obj.model_dump(), "message": "Vehicle parked successfully"}
 
@@ -553,9 +542,9 @@ async def update_vehicle_location(
         {"$set": update_data}
     )
     
-    # Send WhatsApp notification about new location
+    # Send SMS notification about new location
     if zone_label:
-        message = f"🔄 Your vehicle has been moved to a new location:\n\n📍 {zone_label}\n\nThis spot is closer/better for pickup!"
+        message = f"ParKaro: Your vehicle has been moved to a new location: {zone_label}."
         await send_whatsapp_message(vehicle['phone_number'], message)
     
     return {"message": "Location updated", "vehicle_id": vehicle_id}
@@ -675,14 +664,10 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     # Send push notifications to team
     await notify_team_of_retrieval(vehicle, ticket_obj.id)
 
-    # Send WhatsApp notification to customer
+    # Send SMS notification to customer
     client_name = current_user.get('client_name', 'ParKaro')
-    message = f"We hope you had a great time at {client_name}. Your car {vehicle['license_plate']} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
-    await send_whatsapp_message(
-        phone, message,
-        content_sid=WA_TEMPLATE_RETRIEVAL,
-        content_variables={"1": vehicle['license_plate'], "2": current_user['name'], "3": client_name}
-    )
+    message = f"ParKaro ({client_name}): Your car {vehicle['license_plate']} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+    await send_whatsapp_message(phone, message)
 
     # Build clean response without _id
     ticket_response = {
@@ -815,12 +800,8 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=400, detail="Ticket already claimed")
     
     client_name = current_user.get('client_name', 'ParKaro')
-    message = f"We hope you had a great time at {client_name}. Your car {vehicle.get('license_plate', 'your car')} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
-    await send_whatsapp_message(
-        ticket['customer_phone'], message,
-        content_sid=WA_TEMPLATE_RETRIEVAL,
-        content_variables={"1": vehicle.get('license_plate', 'your car'), "2": current_user['name'], "3": client_name}
-    )
+    message = f"ParKaro ({client_name}): Your car {vehicle.get('license_plate', 'your car')} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+    await send_whatsapp_message(ticket['customer_phone'], message)
     
     return {"message": "Ticket claimed"}
 
@@ -838,21 +819,13 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     
     if status == "en_route":
         client_name = current_user.get('client_name', 'ParKaro')
-        message = f"We hope you had a great time at {client_name}. Your car {plate} is now being retrieved and will be brought to the pickup area shortly by valet {current_user['name']}. Please proceed to pick up your car."
-        await send_whatsapp_message(
-            ticket['customer_phone'], message,
-            content_sid=WA_TEMPLATE_RETRIEVAL,
-            content_variables={"1": plate, "2": current_user['name'], "3": client_name}
-        )
+        message = f"ParKaro ({client_name}): Your car {plate} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+        await send_whatsapp_message(ticket['customer_phone'], message)
     
     elif status == "arrived":
         update_data['arrived_at'] = datetime.now(timezone.utc).isoformat()
-        message = f"Your car {plate} is at the entrance! We can hold it for 5 minutes. Please come to the pickup area."
-        await send_whatsapp_message(
-            ticket['customer_phone'], message,
-            content_sid=WA_TEMPLATE_ARRIVED,
-            content_variables={"1": plate}
-        )
+        message = f"ParKaro: Your car {plate} is at the entrance! We can hold it for 5 minutes. Please come to the pickup area now."
+        await send_whatsapp_message(ticket['customer_phone'], message)
     
     elif status == "returned":
         now = datetime.now(timezone.utc).isoformat()
@@ -864,12 +837,8 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "parked"}}
         )
 
-        message = f"Your car {plate} has been returned to parking as you did not arrive within 5 minutes. Please contact the valet desk when you are ready."
-        await send_whatsapp_message(
-            ticket['customer_phone'], message,
-            content_sid=WA_TEMPLATE_RETURNED,
-            content_variables={"1": plate}
-        )
+        message = f"ParKaro: Your car {plate} has been returned to parking as you did not arrive within 5 minutes. Please contact the valet desk when you are ready."
+        await send_whatsapp_message(ticket['customer_phone'], message)
 
     elif status == "completed":
         update_data['completed_at'] = datetime.now(timezone.utc).isoformat()
@@ -883,12 +852,8 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         # Send tipping message with valet name
         valet_name = current_user.get('name', 'your valet')
         tip_link = "https://pay.parkaro.com/tip/coming-soon"
-        message = f"Thank you for parking with the Valet Guys! Please show your appreciation by tipping your valet {valet_name} here: {tip_link}"
-        await send_whatsapp_message(
-            ticket['customer_phone'], message,
-            content_sid=WA_TEMPLATE_TIP,
-            content_variables={"1": valet_name, "2": tip_link}
-        )
+        message = f"ParKaro: Thank you for using our valet service! Please tip your valet {valet_name} here: {tip_link}"
+        await send_whatsapp_message(ticket['customer_phone'], message)
     
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
     
@@ -986,15 +951,11 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         {"$set": {"status": "checked_out", "checked_out_at": now, "checked_out_by": current_user['id']}}
     )
 
-    # Send WhatsApp tipping message
+    # Send SMS tipping message
     valet_name = current_user.get('name', 'your valet')
     tip_link = "https://pay.parkaro.com/tip/coming-soon"
-    message = f"Thank you for parking with the Valet Guys! Please show your appreciation by tipping your valet {valet_name} here: {tip_link}"
-    await send_whatsapp_message(
-        vehicle['phone_number'], message,
-        content_sid=WA_TEMPLATE_TIP,
-        content_variables={"1": valet_name, "2": tip_link}
-    )
+    message = f"ParKaro: Thank you for using our valet service! Please tip your valet {valet_name} here: {tip_link}"
+    await send_whatsapp_message(vehicle['phone_number'], message)
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
 
@@ -1747,10 +1708,10 @@ async def export_reporting_csv(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/whatsapp/webhook")
 async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
-    """Handle incoming WhatsApp messages from Twilio
+    """Handle incoming SMS/WhatsApp messages from Twilio
     Twilio sends form data with 'From' and 'Body' fields
     """
-    # Twilio sends phone number with 'whatsapp:' prefix, remove it
+    # Remove whatsapp: prefix if present (handles both SMS and WhatsApp inbound)
     phone_number = From.replace('whatsapp:', '').strip()
     
     # Add + if not present
@@ -1760,7 +1721,7 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     message = Body.strip()
     message_lower = message.lower()
     
-    print(f"📱 Received WhatsApp message from {phone_number}: {message}")
+    logging.info(f"Received inbound message from {phone_number}: {message}")
     
     if message_lower in ['retr', 'retrieve', 'get car', 'ready']:
         # Find vehicle by phone
@@ -1821,6 +1782,35 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
         return {"reply": "Got it! Your car retrieval request is now active. A valet will claim it shortly and keep you updated!"}
     
     return {"reply": "Hi! Reply 'RETR' when you're ready to retrieve your car."}
+
+
+@api_router.delete("/admin/cleanup-data")
+async def cleanup_old_data(current_user: dict = Depends(get_current_user)):
+    """Super admin or admin can purge all completed/old tickets and checked-out vehicles"""
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    query = {}
+    if current_user['role'] == 'admin':
+        query['client_id'] = current_user.get('client_id')
+
+    # Delete terminal-state tickets
+    t_result = await db.tickets.delete_many({
+        **query,
+        "status": {"$in": ["completed", "returned"]}
+    })
+
+    # Delete checked-out vehicles
+    v_result = await db.vehicles.delete_many({
+        **({} if current_user['role'] == 'super_admin' else {"parked_by": {"$exists": True}}),
+        "status": "checked_out"
+    })
+
+    return {
+        "tickets_deleted": t_result.deleted_count,
+        "vehicles_deleted": v_result.deleted_count
+    }
+
 
 app.include_router(api_router)
 
