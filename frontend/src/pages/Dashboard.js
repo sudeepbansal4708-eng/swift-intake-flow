@@ -5,7 +5,7 @@ import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi } from 'lucide-react';
+import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -16,7 +16,6 @@ export default function Dashboard() {
   const [dashStats, setDashStats] = useState(null);
   const [valetStats, setValetStats] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
-  const [fabOpen, setFabOpen] = useState(false);
   const [showRetrieveModal, setShowRetrieveModal] = useState(false);
   const [retrievePhone, setRetrievePhone] = useState('');
   const [lookupResult, setLookupResult] = useState(null);
@@ -162,7 +161,6 @@ export default function Dashboard() {
   };
 
   const openRetrieveModal = () => {
-    setFabOpen(false);
     setShowRetrieveModal(true);
     setRetrievePhone('');
     setLookupResult(null);
@@ -174,7 +172,9 @@ export default function Dashboard() {
       await axios.post(`${API}/admin/vehicles/${vehicleId}/checkout`);
       toast.success('Vehicle checked out successfully');
       setCheckoutConfirm(null);
-      fetchDashStats();
+      if (isAdmin) fetchDashStats();
+      fetchTickets();
+      if (user?.role === 'valet') fetchValetStats();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to checkout vehicle');
     } finally {
@@ -209,7 +209,7 @@ export default function Dashboard() {
   return (
     <div className="mobile-container">
       <div className="gradient-glow-overlay" />
-      <div className="content-wrapper p-4 space-y-6">
+      <div className="content-wrapper p-4 space-y-6 pb-24">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
@@ -395,6 +395,36 @@ export default function Dashboard() {
                       </div>
                     )}
                   </div>
+                  {ticket.status === 'arrived' && ticket.vehicle?.id && (
+                    checkoutConfirm === ticket.vehicle.id ? (
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          data-testid={`valet-checkout-confirm-${ticket.vehicle.id}`}
+                          onClick={(e) => { e.stopPropagation(); handleCheckout(ticket.vehicle.id); }}
+                          disabled={checkoutLoading}
+                          className="flex-1 h-9 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                        >
+                          {checkoutLoading ? 'Processing...' : 'Confirm Checkout'}
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.stopPropagation(); setCheckoutConfirm(null); }}
+                          variant="ghost"
+                          className="h-9 text-xs text-zinc-400 hover:text-white"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        data-testid={`valet-checkout-button-${ticket.vehicle.id}`}
+                        onClick={(e) => { e.stopPropagation(); setCheckoutConfirm(ticket.vehicle.id); }}
+                        className="mt-3 w-full h-9 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                      >
+                        <CheckCircle className="w-3 h-3 mr-1.5" />
+                        Checkout &amp; Complete
+                      </Button>
+                    )
+                  )}
                 </Card>
               ))}
             </div>
@@ -446,47 +476,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* FAB with Park / Retrieve options */}
-      {fabOpen && (
-        <div
-          className="fixed inset-0 z-[9998]"
-          onClick={() => setFabOpen(false)}
-        />
+      {/* Bottom Action Ribbon */}
+      {(user?.role === 'valet' || isAdmin) && user?.is_online !== false && (
+        <div className="fixed bottom-0 left-0 right-0 z-[9998] bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 py-3 flex gap-3" data-testid="bottom-ribbon">
+          <button
+            data-testid="ribbon-park-button"
+            onClick={() => navigate('/intake')}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm uppercase tracking-wider hover:bg-blue-500 active:scale-[0.97] transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+          >
+            <ParkingCircle className="w-4 h-4" />
+            Park
+          </button>
+          <button
+            data-testid="ribbon-retrieve-button"
+            onClick={openRetrieveModal}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm uppercase tracking-wider hover:bg-emerald-500 active:scale-[0.97] transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+          >
+            <Search className="w-4 h-4" />
+            Retrieve
+          </button>
+        </div>
       )}
-
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3">
-        {fabOpen && (
-          <>
-            <button
-              data-testid="fab-retrieve-button"
-              onClick={openRetrieveModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-500 active:scale-95 transition-all animate-in slide-in-from-bottom-2 duration-200"
-            >
-              <Search className="w-4 h-4" />
-              <span className="text-sm font-semibold uppercase tracking-wide">Retrieve</span>
-            </button>
-            <button
-              data-testid="fab-park-button"
-              onClick={() => { setFabOpen(false); navigate('/intake'); }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-500 active:scale-95 transition-all animate-in slide-in-from-bottom-1 duration-150"
-            >
-              <ParkingCircle className="w-4 h-4" />
-              <span className="text-sm font-semibold uppercase tracking-wide">Park</span>
-            </button>
-          </>
-        )}
-        <Button
-          data-testid="fab-toggle-button"
-          onClick={() => setFabOpen(!fabOpen)}
-          className={`h-14 w-14 rounded-full text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 ${
-            fabOpen
-              ? 'bg-zinc-700 shadow-[0_0_20px_rgba(100,100,100,0.3)]'
-              : 'bg-blue-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
-          }`}
-        >
-          <Plus className={`w-6 h-6 transition-transform duration-200 ${fabOpen ? 'rotate-45' : ''}`} />
-        </Button>
-      </div>
 
       {/* Retrieve Modal */}
       {showRetrieveModal && (

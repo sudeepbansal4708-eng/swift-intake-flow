@@ -783,6 +783,7 @@ async def get_tickets(status: Optional[str] = None, current_user: dict = Depends
             vehicle = vehicles_map.get(ticket['vehicle_id'])
             if vehicle:
                 ticket['vehicle'] = {
+                    "id": vehicle['id'],
                     "license_plate": vehicle['license_plate'],
                     "phone_number": vehicle['phone_number'],
                     "tag_number": vehicle.get('tag_number'),
@@ -852,8 +853,12 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         )
     
     elif status == "arrived":
-        update_data['arrived_at'] = datetime.now(timezone.utc).isoformat()
-        message = f"ParKaro: Your car {plate} is at the entrance! We can hold it for 5 minutes. Please come to the pickup area now."
+        arrived_time = datetime.now(timezone.utc)
+        update_data['arrived_at'] = arrived_time.isoformat()
+        # Calculate deadline 5 mins from now in customer's local context
+        deadline = arrived_time + timedelta(minutes=5)
+        deadline_str = deadline.strftime("%I:%M %p")
+        message = f"ParKaro: Your car {plate} is at the entrance! Please collect by {deadline_str} UTC (5 min). After that, your car will be returned to parking."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_ARRIVED,
@@ -942,9 +947,9 @@ class PushSubscription(BaseModel):
 
 @api_router.post("/admin/vehicles/{vehicle_id}/checkout")
 async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(get_current_user)):
-    """Admin manual checkout: mark vehicle as handed over, send WhatsApp thank-you"""
-    if current_user['role'] not in ['admin', 'super_admin']:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    """Admin or valet manual checkout: mark vehicle as handed over, send WhatsApp thank-you"""
+    if current_user['role'] not in ['admin', 'super_admin', 'valet']:
+        raise HTTPException(status_code=403, detail="Access required")
 
     vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
     if not vehicle:
