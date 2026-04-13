@@ -680,7 +680,7 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
 
     # Send notification to customer
     client_name = current_user.get('client_name', 'ParKaro')
-    message = f"ParKaro ({client_name}): Your car {vehicle['license_plate']} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+    message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {vehicle['license_plate']}!"
     await send_whatsapp_message(
         phone, message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
@@ -803,6 +803,9 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
     if not ticket:
         raise HTTPException(status_code=400, detail="Ticket not available")
     
+    vehicle = await db.vehicles.find_one({"id": ticket.get("vehicle_id")}, {"_id": 0})
+    plate = vehicle.get("license_plate", "your car") if vehicle else "your car"
+
     result = await db.tickets.update_one(
         {"id": ticket_id, "status": "open"},
         {
@@ -818,11 +821,11 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=400, detail="Ticket already claimed")
     
     client_name = current_user.get('client_name', 'ParKaro')
-    message = f"ParKaro ({client_name}): Your car {vehicle.get('license_plate', 'your car')} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+    message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {plate}!"
     await send_whatsapp_message(
         ticket['customer_phone'], message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
-        content_variables={"1": vehicle.get('license_plate', 'your car'), "2": current_user['name'], "3": client_name}
+        content_variables={"1": plate, "2": current_user['name'], "3": client_name}
     )
     
     return {"message": "Ticket claimed"}
@@ -841,7 +844,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     
     if status == "en_route":
         client_name = current_user.get('client_name', 'ParKaro')
-        message = f"ParKaro ({client_name}): Your car {plate} is being retrieved by valet {current_user['name']}. Please proceed to the pickup area."
+        message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {plate}!"
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_RETRIEVAL,
@@ -1883,6 +1886,14 @@ async def get_vehicle_for_retrieval(vehicle_id: str):
     }, {"_id": 0})
 
     ticket_status = existing_ticket.get("status") if existing_ticket else None
+    valet_name = None
+    arrived_at = None
+
+    if existing_ticket and existing_ticket.get("claimed_by"):
+        claimer = await db.users.find_one({"id": existing_ticket["claimed_by"]}, {"_id": 0, "name": 1})
+        valet_name = claimer.get("name") if claimer else None
+    if existing_ticket:
+        arrived_at = existing_ticket.get("arrived_at")
 
     return {
         "vehicle_id": vehicle['id'],
@@ -1894,6 +1905,8 @@ async def get_vehicle_for_retrieval(vehicle_id: str):
         "client_name": client_name,
         "valet_fee": valet_fee,
         "active_ticket_status": ticket_status,
+        "valet_name": valet_name,
+        "arrived_at": arrived_at,
     }
 
 

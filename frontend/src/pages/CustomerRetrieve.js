@@ -1,8 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+function CountdownTimer({ arrivedAt }) {
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    if (!arrivedAt) return;
+    const deadline = new Date(arrivedAt).getTime() + 5 * 60 * 1000;
+
+    const tick = () => {
+      const remaining = Math.max(0, deadline - Date.now());
+      setTimeLeft(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [arrivedAt]);
+
+  if (timeLeft === null) return null;
+
+  const mins = Math.floor(timeLeft / 60000);
+  const secs = Math.floor((timeLeft % 60000) / 1000);
+  const expired = timeLeft <= 0;
+  const urgent = timeLeft < 60000 && !expired;
+
+  return (
+    <div
+      className={`retrieve-timer ${expired ? "retrieve-timer-expired" : urgent ? "retrieve-timer-urgent" : ""}`}
+      data-testid="retrieve-countdown"
+    >
+      <p style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 4 }}>
+        {expired ? "TIME EXPIRED" : "Time remaining to collect"}
+      </p>
+      <p className="retrieve-timer-digits">
+        {expired ? "0:00" : `${mins}:${secs.toString().padStart(2, "0")}`}
+      </p>
+      {expired && (
+        <p style={{ fontSize: 12, color: "#f87171", marginTop: 4 }}>
+          Your car may be returned to parking
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function CustomerRetrieve() {
   const { vehicleId } = useParams();
@@ -11,15 +54,23 @@ export default function CustomerRetrieve() {
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const pollRef = useRef(null);
 
   useEffect(() => {
     fetchVehicle();
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [vehicleId]);
 
   const fetchVehicle = async () => {
     try {
       const res = await axios.get(`${API}/retrieve/${vehicleId}`);
       setVehicle(res.data);
+      // Start polling if there's an active ticket
+      if (res.data.active_ticket_status && !["pending_payment"].includes(res.data.active_ticket_status)) {
+        startPolling();
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "Vehicle not found");
     } finally {
@@ -27,11 +78,30 @@ export default function CustomerRetrieve() {
     }
   };
 
+  const startPolling = () => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API}/retrieve/${vehicleId}`);
+        setVehicle(res.data);
+        // Stop polling if vehicle is checked out or no active ticket
+        if (res.data.status === "checked_out" || !res.data.active_ticket_status) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } catch {
+        // silently ignore poll errors
+      }
+    }, 5000);
+  };
+
   const handleConfirm = async () => {
     setConfirming(true);
     try {
       const res = await axios.post(`${API}/retrieve/${vehicleId}/confirm`);
       setResult(res.data);
+      // After confirming, start polling for status updates
+      startPolling();
     } catch (err) {
       setResult({
         status: "error",
@@ -80,15 +150,15 @@ export default function CustomerRetrieve() {
     );
   }
 
-  // Result after confirming
-  if (result) {
+  // Show result only if no active ticket yet (first-time confirm)
+  if (result && !vehicle?.active_ticket_status) {
     const isSuccess = result.status === "open";
     const isPending = result.status === "pending_payment";
     return (
       <div className="retrieve-page" data-testid="retrieve-result">
         <div className="retrieve-card">
           <div className={`retrieve-icon ${isSuccess ? "retrieve-icon-done" : isPending ? "retrieve-icon-pending" : "retrieve-icon-error"}`}>
-            {isSuccess ? "✓" : isPending ? "₹" : "!"}
+            {isSuccess ? "\u2713" : isPending ? "\u20B9" : "!"}
           </div>
           <h2 style={{ color: "#fff", margin: "16px 0 8px" }}>
             {isSuccess ? "Request Confirmed!" : isPending ? "Payment Required" : "Notice"}
@@ -99,30 +169,82 @@ export default function CustomerRetrieve() {
     );
   }
 
-  // Active ticket already exists
+  // Active ticket — show live status
   if (vehicle?.active_ticket_status) {
-    const statusLabels = {
-      open: "Your retrieval request is active. A valet will claim it shortly.",
-      claimed: "A valet has claimed your request and is on the way to your car.",
-      en_route: "Your car is being brought to the pickup area.",
-      arrived: "Your car is at the entrance! Please come to the pickup area.",
-      pending_payment: "Your retrieval is pending payment. Please complete payment to proceed.",
-    };
+    const st = vehicle.active_ticket_status;
     return (
       <div className="retrieve-page" data-testid="retrieve-active-ticket">
         <div className="retrieve-card">
-          <div className="retrieve-icon retrieve-icon-active">&#8635;</div>
-          <h2 style={{ color: "#fff", margin: "16px 0 8px" }}>Request In Progress</h2>
-          <p className="retrieve-plate">{vehicle.license_plate}</p>
-          <p style={{ color: "#a1a1aa", lineHeight: 1.5 }}>
-            {statusLabels[vehicle.active_ticket_status] || "Your request is being processed."}
-          </p>
+          <div className="retrieve-brand">PARKARO</div>
+
+          <div className="retrieve-plate-box" style={{ marginTop: 16, fontSize: 20, padding: "10px 24px" }}>
+            {vehicle.license_plate}
+          </div>
+
+          {/* Status: open */}
+          {st === "open" && (
+            <div className="retrieve-status-section" data-testid="retrieve-status-open">
+              <div className="retrieve-icon retrieve-icon-active" style={{ width: 48, height: 48, fontSize: 20 }}>&#8635;</div>
+              <h2 style={{ color: "#fff", margin: "12px 0 6px", fontSize: 18 }}>Waiting for Valet</h2>
+              <p style={{ color: "#a1a1aa", fontSize: 14, lineHeight: 1.5 }}>
+                Your request is active. A valet will pick it up shortly.
+              </p>
+              <div className="retrieve-pulse" />
+            </div>
+          )}
+
+          {/* Status: claimed or en_route */}
+          {(st === "claimed" || st === "en_route") && (
+            <div className="retrieve-status-section" data-testid="retrieve-status-enroute">
+              <div className="retrieve-icon retrieve-icon-active" style={{ width: 48, height: 48, fontSize: 22 }}>
+                &#9654;
+              </div>
+              <h2 style={{ color: "#fff", margin: "12px 0 6px", fontSize: 18 }}>
+                {vehicle.valet_name ? `${vehicle.valet_name} is on the way` : "Valet is on the way"}
+              </h2>
+              <p style={{ color: "#a1a1aa", fontSize: 14, lineHeight: 1.5 }}>
+                Your car is being brought to the pickup area.
+              </p>
+              <div className="retrieve-pulse" />
+            </div>
+          )}
+
+          {/* Status: arrived — show timer */}
+          {st === "arrived" && (
+            <div className="retrieve-status-section" data-testid="retrieve-status-arrived">
+              <div className="retrieve-icon retrieve-icon-done" style={{ width: 48, height: 48, fontSize: 22 }}>
+                &#10003;
+              </div>
+              <h2 style={{ color: "#22c55e", margin: "12px 0 6px", fontSize: 18 }}>
+                Your Car is Here!
+              </h2>
+              <p style={{ color: "#a1a1aa", fontSize: 14, marginBottom: 16 }}>
+                {vehicle.valet_name
+                  ? `${vehicle.valet_name} has your car at the entrance.`
+                  : "Your car is at the entrance."}
+              </p>
+              <CountdownTimer arrivedAt={vehicle.arrived_at} />
+            </div>
+          )}
+
+          {/* Status: pending_payment */}
+          {st === "pending_payment" && (
+            <div className="retrieve-status-section" data-testid="retrieve-status-pending">
+              <div className="retrieve-icon retrieve-icon-pending" style={{ width: 48, height: 48, fontSize: 22 }}>
+                &#8377;
+              </div>
+              <h2 style={{ color: "#f59e0b", margin: "12px 0 6px", fontSize: 18 }}>Payment Pending</h2>
+              <p style={{ color: "#a1a1aa", fontSize: 14, lineHeight: 1.5 }}>
+                Please complete your valet fee payment to proceed with retrieval.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // Main retrieval confirmation
+  // Main retrieval confirmation (no active ticket)
   return (
     <div className="retrieve-page" data-testid="retrieve-confirm-page">
       <div className="retrieve-card">
