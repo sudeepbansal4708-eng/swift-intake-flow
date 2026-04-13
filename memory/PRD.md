@@ -5,12 +5,12 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
 
 ## User Roles
 - **Customer**: Receives SMS/WhatsApp notifications, taps a link to retrieve their car (no app needed)
-- **Valet Driver**: Uses React PWA, logs in via OTP
+- **Valet Driver**: Uses React PWA, logs in via OTP. Can park, retrieve, and checkout vehicles.
 - **Admin**: Manages valets, tips, car statuses — logs in via OTP
 - **Super Admin**: Manages Admins, platform-wide analytics (password login only)
 
 ## Authentication
-- OTP Login (Valets + Admins): Phone → 6-digit OTP → 10-min expiry
+- OTP Login (Valets + Admins): Phone -> 6-digit OTP -> 10-min expiry
 - Password Login (Super Admin only): Email + password
 - Dev mode: OTP always displayed on screen for testing
 
@@ -19,73 +19,63 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
 ### Core
 - JWT auth (hybrid: password for super admin, OTP for admin/valet)
 - Multi-step vehicle intake with optional GPS
-- Twilio WhatsApp messaging (verified, production ready)
+- Twilio WhatsApp messaging (verified, production ready) with SMS fallback
 - Retrieval ticket system with full lifecycle
+- Web-based customer retrieval page (no login required)
+
+### Valet Dashboard — Apr 2026
+- 3 metric cards: Cars Parked Today, Cars Retrieved Today, Tips Today
+- **Bottom action ribbon** with Park and Retrieve buttons (replaced FAB)
+- **Valet checkout capability** — valets can now checkout vehicles directly
+- Polling-based in-app notifications for new tickets
+- Checkout sends thank-you + tip message to customer via WhatsApp
 
 ### Customer Retrieval (Web-Based) — Apr 2026
 - Public web page at `/retrieve/:vehicleId` (no login required)
-- Customer taps link from SMS/WhatsApp to request car retrieval
-- Shows license plate, tag number, valet fee, and "Get My Car" button
+- Customer taps link from WhatsApp to request car retrieval
+- Shows license plate, tag number, valet fee, "Get My Car" button
+- **Live status polling** — auto-updates every 5 seconds
+- **Shows valet name** when ticket is claimed/en_route ("Jennifer Smith is on the way")
+- **Countdown timer** when car arrives — 5-minute timer with urgency colors
 - Handles all states: confirm, pending payment, in progress, already collected
-- Endpoints: `GET /api/retrieve/{vehicle_id}`, `POST /api/retrieve/{vehicle_id}/confirm`
-- Replaces SMS "Reply RETR" flow (bypasses A2P 10DLC / inbound SMS limitations)
 
 ### Messaging — Apr 2026
-- Dual-mode messaging: WhatsApp (primary) or SMS (fallback via MESSAGING_MODE env var)
-- All messages use plain text body (no WhatsApp templates — simpler, works in both modes)
+- Dual-mode: WhatsApp (primary, MESSAGING_MODE=whatsapp) or SMS fallback
+- Plain text body (no WhatsApp templates)
 - Webhook returns TwiML XML for Twilio compatibility
-- Parking SMS/WhatsApp includes clickable retrieve URL
-
-### Admin Panel
-- Collapsible My Profile (name, client name, profile photo upload)
-- Collapsible Team Management (valet CRUD, license verification)
-- Clickable stat cards: Active Valets, Vehicles, Tips (with detail modals)
-- Tab navigation to Reporting dashboard
-
-### Admin Reporting ("The Nightly Pulse")
-- Tonight's Performance, Valet Leaderboard, Peak Hour Heatmap, Wait-List Alert, Financial Reconciliation, CSV Export
-
-### Super Admin Panel
-- Client management (create/deactivate), per-client report modal
-- Archive for deactivated clients (collapsible)
-- Inline delete confirmation (no browser dialogs)
-
-### Valet Dashboard
-- 3 metric cards: Cars Parked Today, Cars Retrieved Today, Tips Today
-- FAB with Park/Retrieve dropdown options
-- Polling-based in-app notifications for new tickets
-
-### Shift Management
-- Admin toggle to mark valets online/offline
-- Only online valets can park/retrieve vehicles
-- Valets can request to go online; admin sees and approves
+- Parking WhatsApp includes clickable retrieve URL
+- **Claim message**: "Valet XXX is on the way to get your car"
+- **Arrived message**: Includes deadline time ("Please collect by XX:XX PM UTC")
+- **Checkout message**: Thank-you + tip link
 
 ### Ghosting Protocol (Phase C)
 - 5-minute countdown timer after car arrives at entrance
 - "RETURN TO PARK (GHOSTED)" action when timer expires
-- Vehicle resets to parked status; customer notified via SMS/WhatsApp
+- Vehicle resets to parked status; customer notified
+
+### Shift Management
+- Admin toggle to mark valets online/offline
+- Only online valets can park/retrieve vehicles
 
 ### Valet Parking Fee & Payment Gate
 - Admin sets valet fee in profile settings
 - If fee > Rs.1, retrieval creates pending_payment ticket
 - Payment link sent to customer (currently MOCKED)
 
-### Admin Manual Vehicle Checkout
-- Admins can force-checkout vehicles from dashboard
-- Blocked if vehicle has pending_payment ticket
+### Admin Panel
+- Collapsible My Profile (name, client name, profile photo upload)
+- Collapsible Team Management (valet CRUD, license verification)
+- Clickable stat cards with detail modals
+
+### Admin Reporting ("The Nightly Pulse")
+- Performance metrics, Valet Leaderboard, Peak Hour Heatmap, Financial Reconciliation, CSV Export
+
+### Super Admin Panel
+- Client management (create/deactivate), per-client report modal
+- Archive for deactivated clients
 
 ### Data Cleanup
 - `DELETE /api/admin/cleanup-data` purges completed tickets and checked-out vehicles
-
-## Key API Endpoints
-- Auth: `/api/auth/login`, `/api/auth/otp/request`, `/api/auth/otp/verify`, `/api/auth/me`
-- Vehicles: `/api/vehicles`, `/api/vehicles/lookup`
-- Tickets: `/api/tickets`, `/api/tickets/retrieve`, `/api/tickets/{id}/claim`, `/api/tickets/{id}/status`
-- Public Retrieval: `/api/retrieve/{vehicle_id}`, `/api/retrieve/{vehicle_id}/confirm`
-- Admin: `/api/admin/dashboard-stats`, `/api/admin/valets`, `/api/admin/profile`, `/api/admin/reporting-nightly`
-- Super Admin: `/api/super-admin/clients/{id}`, `/api/super-admin/admins/{id}`
-- Webhook: `/api/whatsapp/webhook` (TwiML response)
-- Cleanup: `DELETE /api/admin/cleanup-data`
 
 ## Tech Stack
 - Backend: FastAPI, Motor (async MongoDB), Pydantic, JWT, Twilio SDK
@@ -95,6 +85,12 @@ Build a valet parking platform called "ParKaro" with four user roles: Customer (
 ## Known Issues / MOCKED
 - Payment links (tip, valet fee) are placeholder URLs — Stripe/Razorpay not integrated
 - Tips data is all zeros until payment integration
+
+## Current Users in DB
+- Super Admin: superadmin@swiftvalet.com / superadmin123
+- Admin: Sudeep test (+18139006037, OTP login)
+- Valet: Jennifer Smith (+919922668866, OTP login)
+- Valet: Sudeep valet (+919372991136, OTP login)
 
 ## Upcoming Tasks
 1. **P1**: Integrate real payment processing (Stripe/Razorpay) for valet fees and tips
