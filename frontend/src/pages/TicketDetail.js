@@ -32,10 +32,11 @@ export default function TicketDetail() {
   useEffect(() => {
     if (ticket?.status === 'arrived' && ticket.arrived_at) {
       const arrivedTime = new Date(ticket.arrived_at);
+      const waitSeconds = (ticket.wait_timer || 5) * 60;
       const updateTimer = setInterval(() => {
         const now = new Date();
         const elapsed = Math.floor((now - arrivedTime) / 1000);
-        const remaining = Math.max(300 - elapsed, 0);
+        const remaining = Math.max(waitSeconds - elapsed, 0);
         setTimer(remaining);
 
         if (remaining === 0) {

@@ -320,6 +320,17 @@ async def get_client_valet_fee(client_id: str) -> float:
     )
     return admin.get("valet_fee", 0) if admin else 0
 
+async def get_client_wait_timer(client_id: str) -> int:
+    """Get the wait timer (in minutes) for a client. Returns 5 if not set."""
+    if not client_id:
+        return 5
+    admin = await db.users.find_one(
+        {"client_id": client_id, "role": "admin", "is_active": True},
+        {"_id": 0, "wait_timer": 1}
+    )
+    return admin.get("wait_timer", 5) if admin else 5
+
+
 
 async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
     """Send payment request for valet fee before retrieval"""
@@ -396,7 +407,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "client_id": current_user.get('client_id'),
         "profile_photo": current_user.get('profile_photo'),
         "is_online": current_user.get('is_online', False),
-        "valet_fee": current_user.get('valet_fee', 0)
+        "valet_fee": current_user.get('valet_fee', 0),
+        "wait_timer": current_user.get('wait_timer', 5)
     }
 
 @api_router.post("/auth/otp/request")
@@ -855,10 +867,13 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     elif status == "arrived":
         arrived_time = datetime.now(timezone.utc)
         update_data['arrived_at'] = arrived_time.isoformat()
-        # Calculate deadline 5 mins from now in customer's local context
-        deadline = arrived_time + timedelta(minutes=5)
+        # Get client's custom wait timer
+        client_id = current_user.get('client_id')
+        wait_mins = await get_client_wait_timer(client_id)
+        update_data['wait_timer'] = wait_mins
+        deadline = arrived_time + timedelta(minutes=wait_mins)
         deadline_str = deadline.strftime("%I:%M %p")
-        message = f"ParKaro: Your car {plate} is at the entrance! Please collect by {deadline_str} UTC (5 min). After that, your car will be returned to parking."
+        message = f"ParKaro: Your car {plate} is at the entrance! Please collect by {deadline_str} UTC ({wait_mins} min). After that, your car will be returned to parking."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_ARRIVED,
@@ -1142,9 +1157,10 @@ async def update_admin_profile(
     name: Optional[str] = None,
     client_name: Optional[str] = None,
     valet_fee: Optional[float] = None,
+    wait_timer: Optional[int] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update admin profile (name, client name, valet fee)"""
+    """Update admin profile (name, client name, valet fee, wait timer)"""
     if current_user['role'] != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
     
@@ -1155,6 +1171,8 @@ async def update_admin_profile(
         update_data['client_name'] = client_name
     if valet_fee is not None:
         update_data['valet_fee'] = valet_fee
+    if wait_timer is not None:
+        update_data['wait_timer'] = max(1, min(wait_timer, 30))  # 1-30 minutes
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
@@ -1174,7 +1192,7 @@ async def update_admin_profile(
             {"$set": {"client_name": client_name}}
         )
     
-    return {"message": "Profile updated successfully", "name": name, "client_name": client_name, "valet_fee": valet_fee}
+    return {"message": "Profile updated successfully", "name": name, "client_name": client_name, "valet_fee": valet_fee, "wait_timer": wait_timer}
 
 @api_router.post("/admin/profile/photo")
 async def upload_profile_photo(
@@ -1893,12 +1911,18 @@ async def get_vehicle_for_retrieval(vehicle_id: str):
     ticket_status = existing_ticket.get("status") if existing_ticket else None
     valet_name = None
     arrived_at = None
+    wait_timer = 5  # default
 
     if existing_ticket and existing_ticket.get("claimed_by"):
         claimer = await db.users.find_one({"id": existing_ticket["claimed_by"]}, {"_id": 0, "name": 1})
         valet_name = claimer.get("name") if claimer else None
     if existing_ticket:
         arrived_at = existing_ticket.get("arrived_at")
+        wait_timer = existing_ticket.get("wait_timer", 5)
+
+    # Fallback: get wait_timer from client admin if not on ticket
+    if not existing_ticket or "wait_timer" not in (existing_ticket or {}):
+        wait_timer = await get_client_wait_timer(client_id) if client_id else 5
 
     return {
         "vehicle_id": vehicle['id'],
@@ -1912,6 +1936,7 @@ async def get_vehicle_for_retrieval(vehicle_id: str):
         "active_ticket_status": ticket_status,
         "valet_name": valet_name,
         "arrived_at": arrived_at,
+        "wait_timer": wait_timer,
     }
 
 

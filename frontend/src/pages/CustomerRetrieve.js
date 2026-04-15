@@ -4,12 +4,12 @@ import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-function CountdownTimer({ arrivedAt }) {
+function CountdownTimer({ arrivedAt, waitMinutes = 5 }) {
   const [timeLeft, setTimeLeft] = useState(null);
 
   useEffect(() => {
     if (!arrivedAt) return;
-    const deadline = new Date(arrivedAt).getTime() + 5 * 60 * 1000;
+    const deadline = new Date(arrivedAt).getTime() + waitMinutes * 60 * 1000;
 
     const tick = () => {
       const remaining = Math.max(0, deadline - Date.now());
@@ -223,7 +223,7 @@ export default function CustomerRetrieve() {
                   ? `${vehicle.valet_name} has your car at the entrance.`
                   : "Your car is at the entrance."}
               </p>
-              <CountdownTimer arrivedAt={vehicle.arrived_at} />
+              <CountdownTimer arrivedAt={vehicle.arrived_at} waitMinutes={vehicle.wait_timer || 5} />
             </div>
           )}
 

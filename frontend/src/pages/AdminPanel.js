@@ -22,7 +22,7 @@ export default function AdminPanel() {
   const [selectedValet, setSelectedValet] = useState(null);
   const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
   const [formData, setFormData] = useState({ email: '', name: '', phone_number: '', driver_license_number: '' });
-  const [profileData, setProfileData] = useState({ name: '', client_name: '', profile_photo: null, valet_fee: 0 });
+  const [profileData, setProfileData] = useState({ name: '', client_name: '', profile_photo: null, valet_fee: 0, wait_timer: 5 });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(true);
@@ -46,7 +46,8 @@ export default function AdminPanel() {
         name: res.data.name || '',
         client_name: res.data.client_name || '',
         profile_photo: res.data.profile_photo || null,
-        valet_fee: res.data.valet_fee || 0
+        valet_fee: res.data.valet_fee || 0,
+        wait_timer: res.data.wait_timer || 5
       });
     } catch (error) {
       console.error('Failed to fetch profile');
@@ -157,6 +158,7 @@ export default function AdminPanel() {
       if (profileData.name.trim()) params.append('name', profileData.name.trim());
       if (profileData.client_name.trim()) params.append('client_name', profileData.client_name.trim());
       params.append('valet_fee', profileData.valet_fee || 0);
+      params.append('wait_timer', profileData.wait_timer || 5);
       await axios.put(`${API}/admin/profile?${params.toString()}`);
       toast.success('Profile updated successfully!');
     } catch (error) {
@@ -307,6 +309,21 @@ export default function AdminPanel() {
                       placeholder="0"
                     />
                     <p className="text-xs text-zinc-500 mt-1">Set to 0 for free valet. Customers will be asked to pay before retrieval if fee is more than Rs.1.</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Customer Wait Timer (Minutes)</Label>
+                    <Input
+                      data-testid="admin-wait-timer"
+                      type="number"
+                      min="1"
+                      max="30"
+                      step="1"
+                      value={profileData.wait_timer}
+                      onChange={(e) => setProfileData({ ...profileData, wait_timer: parseInt(e.target.value) || 5 })}
+                      className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                      placeholder="5"
+                    />
+                    <p className="text-xs text-zinc-500 mt-1">How long the valet waits at the entrance before returning the car to parking (1-30 min).</p>
                   </div>
                   <Button
                     data-testid="admin-profile-save-btn"
