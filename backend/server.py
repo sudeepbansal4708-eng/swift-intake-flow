@@ -209,7 +209,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError:
+    except (jwt.InvalidTokenError, jwt.DecodeError, Exception):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def send_whatsapp_message(phone_number: str, message: str, content_sid: str = None, content_variables: dict = None):
@@ -335,12 +335,11 @@ async def get_client_wait_timer(client_id: str) -> int:
 async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
     """Send payment request for valet fee before retrieval"""
     fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
-    payment_link = f"https://pay.parkaro.com/fee/{vehicle_id}"
-    message = f"ParKaro ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment here: {payment_link} to proceed with vehicle retrieval."
+    message = f"Valet Guys ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment to proceed with vehicle retrieval."
     await send_whatsapp_message(
         phone, message,
         content_sid=WA_TEMPLATE_FEE,
-        content_variables={"1": client_name, "2": fee_str, "3": payment_link}
+        content_variables={"1": client_name, "2": fee_str}
     )
 
 # Routes
@@ -436,7 +435,7 @@ async def request_otp(data: OTPRequest):
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    message = f"Your ParKaro login code is: {otp}\n\nThis code expires in 10 minutes."
+    message = f"Your Valet Guys login code is: {otp}\n\nThis code expires in 10 minutes."
     whatsapp_result = await send_whatsapp_message(phone, message)
     logging.info(f"OTP sent to {phone}: result={whatsapp_result}")
 
@@ -500,7 +499,7 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     
     # Send SMS notification with client branding
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
-    client_name = valet.get('client_name', 'ParKaro') if valet else 'ParKaro'
+    client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
     
     location_info = vehicle_obj.zone_label or "Location saved"
     
@@ -508,7 +507,7 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     backend_url = os.environ.get('BACKEND_URL', '')
     retrieve_url = f"{backend_url}/retrieve/{vehicle_obj.id}"
     
-    message = f"ParKaro ({client_name}): Your car {vehicle_obj.license_plate} has been parked. When you're ready to leave, tap here to request your car: {retrieve_url}"
+    message = f"Valet Guys ({client_name}): Your car {vehicle_obj.license_plate} has been parked. When you're ready to leave, tap here to request your car: {retrieve_url}"
     
     sms_result = await send_whatsapp_message(
         vehicle_obj.phone_number, message,
@@ -570,7 +569,7 @@ async def update_vehicle_location(
     
     # Send SMS notification about new location
     if zone_label:
-        message = f"ParKaro: Your vehicle has been moved to a new location: {zone_label}."
+        message = f"Valet Guys: Your vehicle has been moved to a new location: {zone_label}."
         await send_whatsapp_message(vehicle['phone_number'], message)
     
     return {"message": "Location updated", "vehicle_id": vehicle_id}
@@ -636,7 +635,7 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
 
     if valet_fee > 1:
         # Create a pending_payment ticket — customer must pay first
-        client_name = current_user.get('client_name', 'ParKaro')
+        client_name = current_user.get('client_name', 'Valet Guys')
         now = datetime.now(timezone.utc)
         ticket_obj = Ticket(
             vehicle_id=vehicle['id'],
@@ -691,8 +690,8 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     await notify_team_of_retrieval(vehicle, ticket_obj.id)
 
     # Send notification to customer
-    client_name = current_user.get('client_name', 'ParKaro')
-    message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {vehicle['license_plate']}!"
+    client_name = current_user.get('client_name', 'Valet Guys')
+    message = f"Valet Guys: Valet {current_user['name']} is on the way to get your car {vehicle['license_plate']}!"
     await send_whatsapp_message(
         phone, message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
@@ -833,8 +832,8 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Ticket already claimed")
     
-    client_name = current_user.get('client_name', 'ParKaro')
-    message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {plate}!"
+    client_name = current_user.get('client_name', 'Valet Guys')
+    message = f"Valet Guys: Valet {current_user['name']} is on the way to get your car {plate}!"
     await send_whatsapp_message(
         ticket['customer_phone'], message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
@@ -856,8 +855,8 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
     update_data = {"status": status}
     
     if status == "en_route":
-        client_name = current_user.get('client_name', 'ParKaro')
-        message = f"ParKaro: Valet {current_user['name']} is on the way to get your car {plate}!"
+        client_name = current_user.get('client_name', 'Valet Guys')
+        message = f"Valet Guys: Valet {current_user['name']} is on the way to get your car {plate}!"
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_RETRIEVAL,
@@ -873,7 +872,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         update_data['wait_timer'] = wait_mins
         deadline = arrived_time + timedelta(minutes=wait_mins)
         deadline_str = deadline.strftime("%I:%M %p")
-        message = f"ParKaro: Your car {plate} is at the entrance! Please collect by {deadline_str} UTC ({wait_mins} min). After that, your car will be returned to parking."
+        message = f"Valet Guys: Your car {plate} is at the entrance! Please collect by {deadline_str} UTC ({wait_mins} min). After that, your car will be returned to parking."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_ARRIVED,
@@ -890,7 +889,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "parked"}}
         )
 
-        message = f"ParKaro: Your car {plate} has been returned to parking as you did not arrive within 5 minutes. Please contact the valet desk when you are ready."
+        message = f"Valet Guys: Your car {plate} has been returned to parking as you did not arrive within 5 minutes. Please contact the valet desk when you are ready."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_RETURNED,
@@ -906,14 +905,14 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             {"$set": {"status": "checked_out", "checked_out_at": update_data['completed_at']}}
         )
         
-        # Send tipping message with valet name
+        # Send thank-you message
         valet_name = current_user.get('name', 'your valet')
-        tip_link = "https://pay.parkaro.com/tip/coming-soon"
-        message = f"ParKaro: Thank you for using our valet service! Please tip your valet {valet_name} here: {tip_link}"
+        client_name_msg = current_user.get('client_name', 'Valet Guys')
+        message = f"Valet Guys: Thank you for parking with Valet Guys at {client_name_msg}! We hope to see you again soon."
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_TIP,
-            content_variables={"1": valet_name, "2": tip_link}
+            content_variables={"1": valet_name, "2": client_name_msg}
         )
     
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
@@ -1012,14 +1011,14 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         {"$set": {"status": "checked_out", "checked_out_at": now, "checked_out_by": current_user['id']}}
     )
 
-    # Send tipping message
+    # Send thank-you message
     valet_name = current_user.get('name', 'your valet')
-    tip_link = "https://pay.parkaro.com/tip/coming-soon"
-    message = f"ParKaro: Thank you for using our valet service! Please tip your valet {valet_name} here: {tip_link}"
+    client_name_msg = current_user.get('client_name', 'Valet Guys')
+    message = f"Valet Guys: Thank you for parking with Valet Guys at {client_name_msg}! We hope to see you again soon."
     await send_whatsapp_message(
         vehicle['phone_number'], message,
         content_sid=WA_TEMPLATE_TIP,
-        content_variables={"1": valet_name, "2": tip_link}
+        content_variables={"1": valet_name, "2": client_name_msg}
     )
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
@@ -2002,7 +2001,7 @@ async def confirm_vehicle_retrieval(vehicle_id: str):
     await notify_team_of_retrieval(vehicle, ticket_obj.id)
 
     # Send confirmation SMS
-    message = f"ParKaro: Your retrieval request for {vehicle.get('license_plate')} is confirmed! A valet will bring your car shortly."
+    message = f"Valet Guys: Your retrieval request for {vehicle.get('license_plate')} is confirmed! A valet will bring your car shortly."
     await send_whatsapp_message(phone_number, message)
 
     return {

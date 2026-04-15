@@ -14,7 +14,7 @@ export default function IntakeForm() {
   const [formData, setFormData] = useState({
     phone_number: '',
     license_plate: '',
-    tag_number: '',
+    tag_number: 'TAG',
     zone_label: '',
     gps_latitude: null,
     gps_longitude: null

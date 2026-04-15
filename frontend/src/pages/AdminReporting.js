@@ -115,7 +115,7 @@ export default function AdminReporting() {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `parkaro_payout_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `valetguys_payout_${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success('CSV downloaded');

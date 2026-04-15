@@ -175,7 +175,7 @@ export default function CustomerRetrieve() {
     return (
       <div className="retrieve-page" data-testid="retrieve-active-ticket">
         <div className="retrieve-card">
-          <div className="retrieve-brand">PARKARO</div>
+          <div className="retrieve-brand">VALET GUYS</div>
 
           <div className="retrieve-plate-box" style={{ marginTop: 16, fontSize: 20, padding: "10px 24px" }}>
             {vehicle.license_plate}

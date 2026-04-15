@@ -43,7 +43,7 @@ export default function Login({ setIsAuthenticated }) {
       if (!phone.startsWith('+')) phone = '+' + phone;
       const res = await axios.post(`${API}/auth/otp/request`, { phone_number: phone });
       if (res.data.dev_otp) {
-        setDevOtp(res.data.dev_otp);
+        // OTP display removed - WhatsApp is working
       }
       toast.success('OTP sent to your WhatsApp!');
       setMode('otp-verify');
@@ -89,7 +89,7 @@ export default function Login({ setIsAuthenticated }) {
             <Car className="w-8 h-8 text-blue-500" />
           </div>
           <h1 className="text-5xl font-bold uppercase tracking-tight text-white mb-2" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-            ParKaro
+            Valet Guys
           </h1>
           <p className="text-zinc-400 text-sm">PREMIUM PARKING SERVICE</p>
         </div>
@@ -216,12 +216,6 @@ export default function Login({ setIsAuthenticated }) {
             <p className="text-sm text-zinc-400 mb-4">
               A 6-digit code was sent to <span className="text-white font-medium">{otpPhone}</span> via WhatsApp.
             </p>
-            {devOtp && (
-              <div data-testid="dev-otp-display" className="mb-4 p-3 rounded-lg bg-amber-950/30 border border-amber-700/40">
-                <div className="text-[10px] text-amber-500/80 uppercase tracking-widest mb-1">Dev Mode — Your OTP</div>
-                <div className="text-2xl font-mono font-bold text-amber-400 tracking-[0.3em] text-center">{devOtp}</div>
-              </div>
-            )}
             <form onSubmit={handleVerifyOTP} className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">OTP Code</Label>

@@ -55,7 +55,7 @@ function showBrowserNotification(title, body, ticketId) {
     const notif = new Notification(title, {
       body,
       icon: '/favicon.ico',
-      tag: ticketId || 'parkaro',
+      tag: ticketId || 'valetguys',
       renotify: true,
       requireInteraction: true
     });
