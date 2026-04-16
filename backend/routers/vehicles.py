@@ -29,16 +29,17 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
 
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
     client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
+    valet_name = current_user.get('name', 'our valet driver')
 
     backend_url = os.environ.get('BACKEND_URL', '')
     retrieve_url = f"{backend_url}/retrieve/{vehicle_obj.id}"
 
-    message = f"Valet Guys ({client_name}): Your car {vehicle_obj.license_plate} has been parked. When you're ready to leave, tap here to request your car: {retrieve_url}"
+    message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked at {retrieve_url} by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
 
     sms_result = await send_whatsapp_message(
         vehicle_obj.phone_number, message,
         content_sid=WA_TEMPLATE_PARKING,
-        content_variables={"1": vehicle_obj.license_plate, "2": retrieve_url}
+        content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": retrieve_url, "4": valet_name}
     )
     logger.info(f"Message result for {vehicle_obj.phone_number}: {sms_result}")
 
