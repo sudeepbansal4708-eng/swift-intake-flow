@@ -194,8 +194,8 @@ export default function AdminReporting() {
           </div>
           <RetrievalIndicator mins={s.avg_retrieval_mins} status={s.retrieval_status} />
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <StatCard icon={IndianRupee} label="Total Tips" value={`₹${s.total_tips || 0}`} iconColor="text-amber-500" sub="Placeholder" testId="stat-total-tips" />
-            <StatCard icon={TrendingUp} label="Collection Rate" value={`${s.collection_rate || 0}%`} iconColor="text-cyan-500" sub="Placeholder" testId="stat-collection-rate" />
+            <StatCard icon={IndianRupee} label="Total Tips" value="--" iconColor="text-amber-500" sub="Coming Soon" testId="stat-total-tips" />
+            <StatCard icon={TrendingUp} label="Collection Rate" value="--" iconColor="text-cyan-500" sub="Coming Soon" testId="stat-collection-rate" />
           </div>
         </div>
 
@@ -313,48 +313,13 @@ export default function AdminReporting() {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-400" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
               Financial Reconciliation
             </h2>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold ml-auto">COMING SOON</span>
           </div>
-          <Card data-testid="financial-card" className="bg-zinc-900/50 border border-zinc-800 p-4 space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Pending Tips</div>
-                <div className="text-lg font-bold text-amber-400">{fin.pending_tips_count || 0}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Paid Tips</div>
-                <div className="text-lg font-bold text-emerald-400">₹{fin.paid_tips_total || 0}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Platform Fee</div>
-                <div className="text-lg font-bold text-violet-400">₹{fin.platform_fees || 0}</div>
-              </div>
+          <Card data-testid="financial-card" className="bg-zinc-900/50 border border-zinc-800 p-4 space-y-4 opacity-60">
+            <div className="text-center py-4">
+              <IndianRupee className="w-8 h-8 text-amber-600/40 mx-auto mb-2" />
+              <div className="text-sm text-zinc-400">Tips & payment reconciliation will be available after the pilot phase</div>
             </div>
-
-            {fin.payout && fin.payout.length > 0 && (
-              <div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Valet Payout Summary</div>
-                {fin.payout.map((p) => (
-                  <div key={p.valet_name || p.valet_id} className="flex justify-between items-center py-1.5 border-t border-zinc-800/50">
-                    <span className="text-sm text-zinc-300">{p.valet_name}</span>
-                    <span className="text-sm text-emerald-400 font-medium">₹{p.payout_amount}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="text-[10px] text-zinc-600 italic">
-              Tip data is a placeholder — will populate once payment integration is live.
-            </div>
-
-            <Button
-              data-testid="export-csv-btn"
-              onClick={handleExportCSV}
-              variant="outline"
-              className="w-full h-10 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download Payout CSV
-            </Button>
           </Card>
         </div>
       </div>

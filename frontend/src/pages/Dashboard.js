@@ -276,12 +276,12 @@ export default function Dashboard() {
             </Card>
             <Card
               data-testid="card-tips"
-              onClick={() => setActiveModal('tips')}
-              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 cursor-pointer hover:border-amber-800/50 transition-colors active:scale-95"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 relative opacity-60"
             >
               <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
-              <div className="text-2xl font-bold text-white">₹{dashStats.totals.tips_amount}</div>
+              <div className="text-2xl font-bold text-white">--</div>
               <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
+              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
           </div>
         )}
@@ -337,11 +337,12 @@ export default function Dashboard() {
             </Card>
             <Card
               data-testid="valet-card-tips"
-              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 relative opacity-60"
             >
               <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
-              <div className="text-2xl font-bold text-white">{valetStats.tips_today}</div>
+              <div className="text-2xl font-bold text-white">--</div>
               <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
+              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
           </div>
         )}
@@ -692,29 +693,12 @@ export default function Dashboard() {
               )}
 
               {activeModal === 'tips' && (
-                dashStats?.tips?.length > 0 ? (
-                  dashStats.tips.map((t) => (
-                    <Card key={t.id || `tip-${t.valet_name}-${t.amount}`} data-testid={`modal-tip-${t.valet_name}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="text-sm text-white font-medium">₹{t.amount}</div>
-                          <div className="text-xs text-zinc-400">{t.valet_name}</div>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${t.status === 'paid' ? 'text-emerald-400 border-emerald-800/50 bg-emerald-950/20' : 'text-amber-400 border-amber-800/50 bg-amber-950/20'}`}>
-                            {t.status.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <DollarSign className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                    <div className="text-sm text-zinc-500">No tips received today</div>
-                    <div className="text-[10px] text-zinc-600 mt-1 italic">Tip data will appear once payment integration is live</div>
-                  </div>
-                )
+                <div className="text-center py-8">
+                  <DollarSign className="w-8 h-8 text-amber-600/40 mx-auto mb-2" />
+                  <div className="text-sm text-zinc-400 font-medium">Tips & Payments</div>
+                  <span className="inline-block mt-2 text-[10px] px-2.5 py-1 rounded-full bg-amber-900/30 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
+                  <div className="text-[10px] text-zinc-600 mt-2">Payment integration will be available after the pilot phase</div>
+                </div>
               )}
             </div>
           </Card>
