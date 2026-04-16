@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import SuperAdminPanel from './SuperAdminPanel';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -205,6 +206,11 @@ export default function Dashboard() {
     );
   }
 
+  // Super admin gets their own dedicated home screen
+  if (user?.role === 'super_admin') {
+    return <SuperAdminPanel />;
+  }
+
   const isAdmin = user?.role === 'admin';
 
   return (
@@ -219,17 +225,6 @@ export default function Dashboard() {
             <p className="text-sm text-zinc-400">Welcome, {user?.name}</p>
           </div>
           <div className="flex gap-2">
-            {user?.role === 'super_admin' && (
-              <Button
-                data-testid="super-admin-panel-button"
-                onClick={() => navigate('/super-admin')}
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 text-amber-400 hover:text-amber-300 hover:bg-amber-950/20"
-              >
-                <Crown className="w-5 h-5" />
-              </Button>
-            )}
             {isAdmin && (
               <Button
                 data-testid="admin-panel-button"

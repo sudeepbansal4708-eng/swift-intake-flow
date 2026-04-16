@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp, ChevronRight, Loader2, Archive, ChevronDown } from 'lucide-react';
+import { Crown, Users, Building, Plus, Trash2, X, Car, DollarSign, TrendingUp, ChevronRight, Loader2, Archive, ChevronDown, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 
@@ -27,6 +27,12 @@ export default function SuperAdminPanel() {
     client_name: ''
   });
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.clear();
+    delete axios.defaults.headers.common['Authorization'];
+    navigate('/login');
+  };
 
   useEffect(() => {
     fetchData();
@@ -110,25 +116,25 @@ export default function SuperAdminPanel() {
     <div className="mobile-container">
       <div className="gradient-glow-overlay" />
       <div className="content-wrapper p-4 space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Crown className="w-6 h-6 text-amber-400" />
+            <div>
+              <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                Dashboard
+              </h1>
+              <p className="text-sm text-zinc-400">Super Admin</p>
+            </div>
+          </div>
           <Button
-            data-testid="back-button"
-            onClick={() => navigate('/')}
+            data-testid="logout-button"
+            onClick={handleLogout}
             variant="ghost"
             size="icon"
             className="h-10 w-10 text-zinc-400 hover:text-white hover:bg-zinc-800"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <LogOut className="w-5 h-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Crown className="w-6 h-6 text-amber-400" />
-              <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-                Super Admin
-              </h1>
-            </div>
-            <p className="text-sm text-zinc-400">Manage client admins</p>
-          </div>
         </div>
 
         {analytics && (
@@ -143,10 +149,11 @@ export default function SuperAdminPanel() {
               <div className="text-3xl font-bold text-white">{analytics.cars_parked_now}</div>
               <div className="text-xs text-blue-400 uppercase tracking-wider">Cars Parked Now</div>
             </Card>
-            <Card className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4">
+            <Card className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4 relative opacity-60">
               <DollarSign className="w-6 h-6 text-emerald-400 mb-2" />
-              <div className="text-3xl font-bold text-white">₹{analytics.total_tips_today}</div>
+              <div className="text-3xl font-bold text-white">--</div>
               <div className="text-xs text-emerald-400 uppercase tracking-wider">Tips Today</div>
+              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
             <Card className="bg-gradient-to-br from-purple-950/30 to-zinc-900/50 backdrop-blur-md border border-purple-800/50 p-4">
               <TrendingUp className="w-6 h-6 text-purple-400 mb-2" />
@@ -376,10 +383,11 @@ export default function SuperAdminPanel() {
                     <div className="text-2xl font-bold text-white">{clientReport.cars_parked_now}</div>
                     <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Parked Now</div>
                   </Card>
-                  <Card data-testid="report-tips-today" className="bg-zinc-800/50 border border-zinc-700 p-4">
+                  <Card data-testid="report-tips-today" className="bg-zinc-800/50 border border-zinc-700 p-4 relative opacity-60">
                     <DollarSign className="w-5 h-5 text-amber-400 mb-1.5" />
-                    <div className="text-2xl font-bold text-white">₹{clientReport.tips_today}</div>
+                    <div className="text-2xl font-bold text-white">--</div>
                     <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Tips Today</div>
+                    <span className="absolute top-1.5 right-1.5 text-[8px] px-1 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">SOON</span>
                   </Card>
                   <Card data-testid="report-cars-parked-today" className="bg-zinc-800/50 border border-zinc-700 p-4">
                     <TrendingUp className="w-5 h-5 text-violet-400 mb-1.5" />
@@ -387,7 +395,7 @@ export default function SuperAdminPanel() {
                     <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Parked Today</div>
                   </Card>
                 </div>
-                <p className="text-[10px] text-zinc-600 italic text-center pt-1">Tip data is placeholder — will populate once payments are live.</p>
+                <p className="text-[10px] text-zinc-600 italic text-center pt-1">Tip data will be available after the pilot phase.</p>
               </div>
             ) : null}
           </Card>
