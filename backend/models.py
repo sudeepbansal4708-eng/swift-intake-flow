@@ -49,14 +49,12 @@ class UserCreate(BaseModel):
 
 
 class ValetCreate(BaseModel):
-    email: EmailStr
     name: str
     phone_number: str
     driver_license_number: Optional[str] = None
 
 
 class AdminCreate(BaseModel):
-    email: EmailStr
     name: str
     phone_number: str
     client_name: Optional[str] = None

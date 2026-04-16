@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 export default function IntakeForm() {
   const [step, setStep] = useState(1); // 1: Car handoff, 2: GPS & Landmark, 3: Final park
   const [formData, setFormData] = useState({
-    phone_number: '',
+    phone_number: '+91',
     license_plate: '',
     tag_number: 'TAG',
     zone_label: '',

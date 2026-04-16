@@ -1,27 +1,28 @@
-/* Service Worker for ParKaro Push Notifications */
+/* Service Worker for Valet Guys Push Notifications */
 
 self.addEventListener('push', function(event) {
-  let data = { title: 'ParKaro', body: 'New notification', data: {} };
-  
+  let data = { title: 'Valet Guys', body: 'New notification', data: {} };
+
   try {
     if (event.data) {
       data = event.data.json();
     }
   } catch (e) {
-    console.error('Failed to parse push data:', e);
+    // Failed to parse push data
   }
 
   const options = {
     body: data.body,
     icon: data.icon || '/favicon.ico',
     badge: data.badge || '/favicon.ico',
-    vibrate: [200, 100, 200],
+    vibrate: [200, 100, 200, 100, 200],
     data: data.data || {},
     actions: data.data?.type === 'retrieval' ? [
       { action: 'open', title: 'View Ticket' }
     ] : [],
-    tag: data.data?.ticket_id || 'parkaro-notification',
-    renotify: true
+    tag: data.data?.ticket_id || 'valetguys-notification',
+    renotify: true,
+    requireInteraction: true
   };
 
   event.waitUntil(
@@ -34,8 +35,10 @@ self.addEventListener('notificationclick', function(event) {
 
   const ticketId = event.notification.data?.ticket_id;
   let url = '/';
-  
-  if (ticketId) {
+
+  if (event.action === 'open' && ticketId) {
+    url = `/ticket/${ticketId}`;
+  } else if (ticketId) {
     url = `/ticket/${ticketId}`;
   }
 

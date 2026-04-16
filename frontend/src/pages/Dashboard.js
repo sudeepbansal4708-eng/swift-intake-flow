@@ -5,7 +5,7 @@ import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi } from 'lucide-react';
+import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import SuperAdminPanel from './SuperAdminPanel';
@@ -18,13 +18,14 @@ export default function Dashboard() {
   const [valetStats, setValetStats] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
   const [showRetrieveModal, setShowRetrieveModal] = useState(false);
-  const [retrievePhone, setRetrievePhone] = useState('');
+  const [retrievePhone, setRetrievePhone] = useState('+91');
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [retrieveLoading, setRetrieveLoading] = useState(false);
   const [checkoutConfirm, setCheckoutConfirm] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [requestOnlineLoading, setRequestOnlineLoading] = useState(false);
+  const [showNotifBanner, setShowNotifBanner] = useState(false);
   const navigate = useNavigate();
   const { subscribe } = usePushNotifications();
 
@@ -39,6 +40,11 @@ export default function Dashboard() {
 
     // Subscribe to push notifications
     subscribe();
+
+    // Check if notification permission needs prompting
+    if ('Notification' in window && Notification.permission === 'default') {
+      setShowNotifBanner(true);
+    }
 
     const interval = setInterval(() => {
       fetchTickets();
@@ -144,13 +150,13 @@ export default function Dashboard() {
       if (res.data.pending_payment) {
         toast.info(`Payment of Rs.${res.data.ticket.valet_fee} requested from customer`);
         setShowRetrieveModal(false);
-        setRetrievePhone('');
+        setRetrievePhone('+91');
         setLookupResult(null);
         fetchTickets();
       } else {
         toast.success('Retrieval ticket created!');
         setShowRetrieveModal(false);
-        setRetrievePhone('');
+        setRetrievePhone('+91');
         setLookupResult(null);
         fetchTickets();
         navigate(`/ticket/${res.data.ticket.id}`);
@@ -247,6 +253,45 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
+
+        {/* Push Notification Permission Banner */}
+        {showNotifBanner && (
+          <Card data-testid="notification-banner" className="bg-blue-950/30 border border-blue-800/50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="w-5 h-5 text-blue-400" />
+                <div>
+                  <div className="text-sm font-semibold text-blue-300">Enable Notifications</div>
+                  <div className="text-xs text-blue-400/70">Get alerted instantly when a car retrieval is requested</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  data-testid="enable-notifications-btn"
+                  onClick={async () => {
+                    await subscribe();
+                    setShowNotifBanner(false);
+                    if (Notification.permission === 'granted') {
+                      toast.success('Notifications enabled!');
+                    }
+                  }}
+                  className="h-8 px-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+                >
+                  Enable
+                </Button>
+                <Button
+                  data-testid="dismiss-notifications-btn"
+                  onClick={() => setShowNotifBanner(false)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-blue-400/50 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Admin Stat Cards */}
         {isAdmin && dashStats && (

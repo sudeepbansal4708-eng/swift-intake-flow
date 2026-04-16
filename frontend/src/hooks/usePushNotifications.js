@@ -14,7 +14,6 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-// Audio alert for new retrieval tickets
 function playAlertSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -28,7 +27,6 @@ function playAlertSound() {
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
     osc.stop(ctx.currentTime + 0.5);
-    // Second beep
     setTimeout(() => {
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
@@ -42,11 +40,10 @@ function playAlertSound() {
       osc2.stop(ctx.currentTime + 0.5);
     }, 200);
   } catch (e) {
-    // Audio API not available on this device
+    // Audio API not available
   }
 }
 
-// Send browser notification (no service worker needed)
 function showBrowserNotification(title, body, ticketId) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
@@ -67,7 +64,7 @@ function showBrowserNotification(title, body, ticketId) {
       notif.close();
     };
   } catch (e) {
-    // Fallback: some browsers don't support Notification constructor directly
+    // Fallback: some browsers don't support Notification constructor
   }
 }
 
@@ -76,14 +73,16 @@ export function usePushNotifications() {
   const knownTicketIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
 
-  // Request notification permission on first use
   const requestPermission = useCallback(async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission === 'default') {
+      const result = await Notification.requestPermission();
+      return result === 'granted';
     }
+    return false;
   }, []);
 
-  // Subscribe to Web Push (best-effort, not critical)
   const subscribePush = useCallback(async () => {
     if (subscribedRef.current) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -92,10 +91,18 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
 
-      const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+      // Get VAPID key from env or fetch from API
+      let vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        try {
+          const res = await axios.get(`${API}/push/vapid-key`);
+          vapidKey = res.data.public_key;
+        } catch (e) {
+          // Could not get VAPID key
+        }
+      }
       if (!vapidKey) return;
 
-      // Check existing subscription first
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
@@ -111,27 +118,20 @@ export function usePushNotifications() {
       subscribedRef.current = true;
     } catch (err) {
       // Non-critical: Web Push is optional, polling handles notifications
-      if (err.message) {
-        // Logging skipped in production
-      }
     }
   }, []);
 
-  // Poll-based notification: detect new retrieval tickets
   const checkForNewTickets = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/tickets`);
-      // Watch for any active retrieval tickets (open or just claimed)
       const activeTickets = res.data.filter(t => ['open', 'claimed', 'en_route'].includes(t.status));
 
       if (!initialLoadDoneRef.current) {
-        // First load: just record existing ticket IDs, don't notify
         res.data.forEach(t => knownTicketIdsRef.current.add(t.id));
         initialLoadDoneRef.current = true;
         return;
       }
 
-      // Check for new tickets we haven't seen
       for (const ticket of activeTickets) {
         if (!knownTicketIdsRef.current.has(ticket.id)) {
           knownTicketIdsRef.current.add(ticket.id);
@@ -139,7 +139,6 @@ export function usePushNotifications() {
           const tag = ticket.vehicle?.tag_number;
           const tagStr = tag ? ` (Tag #${tag})` : '';
 
-          // In-app toast
           toast.info(`New Retrieval: ${plate}${tagStr}`, {
             description: 'A vehicle retrieval has been initiated',
             duration: 10000,
@@ -149,10 +148,8 @@ export function usePushNotifications() {
             }
           });
 
-          // Audio beep
           playAlertSound();
 
-          // Browser notification
           showBrowserNotification(
             'New Retrieval Request',
             `Car ${plate}${tagStr} — retrieval in progress!`,
@@ -161,28 +158,26 @@ export function usePushNotifications() {
         }
       }
     } catch (err) {
-      // Non-critical: poll will retry on next interval
+      // Non-critical: poll will retry
     }
   }, []);
 
   const subscribe = useCallback(async () => {
-    await requestPermission();
-    subscribePush();
+    const granted = await requestPermission();
+    if (granted) {
+      subscribePush();
+    }
   }, [requestPermission, subscribePush]);
 
-  // Start polling for new tickets
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    // Initial check
     checkForNewTickets();
-
-    // Poll every 5 seconds for new tickets
     const interval = setInterval(checkForNewTickets, 5000);
     return () => clearInterval(interval);
   }, [checkForNewTickets]);
 
-  return { subscribe };
+  return { subscribe, requestPermission };
 }

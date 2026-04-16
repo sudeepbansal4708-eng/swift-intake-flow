@@ -21,11 +21,11 @@ export default function SuperAdminPanel() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
-    phone_number: '',
+    phone_number: '+91',
     name: '',
     client_name: ''
   });
+  // Note: email field removed - backend auto-generates from phone
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -62,7 +62,7 @@ export default function SuperAdminPanel() {
       await axios.post(`${API}/super-admin/admins`, formData);
       toast.success('Admin created successfully!');
       setShowAddForm(false);
-      setFormData({ email: '', phone_number: '', name: '', client_name: '' });
+      setFormData({ phone_number: '+91', name: '', client_name: '' });
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create admin');
@@ -197,10 +197,6 @@ export default function SuperAdminPanel() {
                 <div>
                   <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Admin Name</Label>
                   <Input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="John Doe" required />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Email</Label>
-                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white placeholder:text-zinc-500" placeholder="admin@acme.com" required />
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Phone Number (for OTP Login)</Label>

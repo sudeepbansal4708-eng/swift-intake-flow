@@ -21,7 +21,7 @@ export default function AdminPanel() {
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [selectedValet, setSelectedValet] = useState(null);
   const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
-  const [formData, setFormData] = useState({ email: '', name: '', phone_number: '', driver_license_number: '' });
+  const [formData, setFormData] = useState({ name: '', phone_number: '+91', driver_license_number: '' });
   const [profileData, setProfileData] = useState({ name: '', client_name: '', profile_photo: null, valet_fee: 0, wait_timer: 5 });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -95,7 +95,7 @@ export default function AdminPanel() {
       
       toast.success('Valet created successfully!');
       setShowAddForm(false);
-      setFormData({ email: '', name: '', phone_number: '', driver_license_number: '' });
+      setFormData({ name: '', phone_number: '+91', driver_license_number: '' });
       setLicenseData({ number: '', photo: null, preview: null });
       fetchData();
     } catch (error) {
@@ -392,18 +392,6 @@ export default function AdminPanel() {
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="h-12 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
-                  placeholder="john@example.com"
-                  required
-                />
-              </div>
-
-              <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Phone Number (for OTP Login)</Label>
                 <Input
                   type="tel"
@@ -490,10 +478,7 @@ export default function AdminPanel() {
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-zinc-400">{valet.email}</div>
-                        {valet.phone_number && (
-                          <div className="text-sm text-zinc-500">{valet.phone_number}</div>
-                        )}
+                        <div className="text-sm text-zinc-400">{valet.phone_number}</div>
                         <div className="flex items-center gap-2 mt-2">
                           <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-zinc-700">
                             <span className="text-blue-400">{valet.role.toUpperCase()}</span>

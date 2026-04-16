@@ -259,16 +259,18 @@ async def create_valet(valet_data: ValetCreate, current_user: dict = Depends(get
     if not phone.startswith('+'):
         phone = '+' + phone
 
-    existing = await db.users.find_one({"email": valet_data.email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
     existing_phone = await db.users.find_one({"phone_number": phone, "role": "valet"})
     if existing_phone:
         raise HTTPException(status_code=400, detail="Phone number already registered to another valet")
 
+    # Auto-generate email from phone
+    email = f"{phone.replace('+', '')}@valetguys.local"
+    existing_email = await db.users.find_one({"email": email})
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Account already exists for this phone number")
+
     user_obj = User(
-        email=valet_data.email,
+        email=email,
         name=valet_data.name,
         phone_number=phone,
         role="valet",

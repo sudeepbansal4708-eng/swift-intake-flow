@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 export default function Login({ setIsAuthenticated }) {
   const [mode, setMode] = useState('choose'); // choose, superadmin, otp-phone, otp-verify
   const [formData, setFormData] = useState({ email: '', password: '' });
-  const [otpPhone, setOtpPhone] = useState('');
+  const [otpPhone, setOtpPhone] = useState('+91');
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [devOtp, setDevOtp] = useState('');
