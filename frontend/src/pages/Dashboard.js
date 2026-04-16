@@ -5,9 +5,10 @@ import { API } from '../App';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi, Bell } from 'lucide-react';
+import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, IdCard, ArrowDownToLine, Search, ParkingCircle, CheckCircle, WifiOff, Wifi, Bell, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import SuperAdminPanel from './SuperAdminPanel';
 
 export default function Dashboard() {
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [showNotifBanner, setShowNotifBanner] = useState(false);
   const navigate = useNavigate();
   const { subscribe } = usePushNotifications();
+  const { isInstallable, promptInstall, dismiss: dismissInstall } = useInstallPrompt();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -285,6 +287,44 @@ export default function Dashboard() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-blue-400/50 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Install App Banner */}
+        {isInstallable && (
+          <Card data-testid="install-app-banner" className="bg-emerald-950/30 border border-emerald-800/50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Download className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <div className="text-sm font-semibold text-emerald-300">Install Valet Guys</div>
+                  <div className="text-xs text-emerald-400/70">Add to your home screen for quick access</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  data-testid="install-app-btn"
+                  onClick={async () => {
+                    const installed = await promptInstall();
+                    if (installed) {
+                      toast.success('App installed!');
+                    }
+                  }}
+                  className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                >
+                  Install
+                </Button>
+                <Button
+                  data-testid="dismiss-install-btn"
+                  onClick={dismissInstall}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-emerald-400/50 hover:text-white"
                 >
                   <X className="w-4 h-4" />
                 </Button>

@@ -62,3 +62,8 @@ self.addEventListener('install', function(event) {
 self.addEventListener('activate', function(event) {
   event.waitUntil(clients.claim());
 });
+
+self.addEventListener('fetch', function(event) {
+  // Network-first strategy — let the app work normally
+  event.respondWith(fetch(event.request));
+});
