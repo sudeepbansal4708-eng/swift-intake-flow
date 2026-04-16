@@ -293,11 +293,11 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         )
 
         client_name_msg = current_user.get('client_name', 'Valet Guys')
-        message = f"Thank you for parking at {client_name_msg}. We hope you enjoyed your time here.\nThe Valet Guys"
+        message = f"Thank you for parking with the Valet Guys at {client_name_msg}!\n\nDrive Safe!"
         await send_whatsapp_message(
             ticket['customer_phone'], message,
             content_sid=WA_TEMPLATE_TIP,
-            content_variables={"1": current_user.get('name', 'your valet'), "2": client_name_msg}
+            content_variables={"1": client_name_msg}
         )
 
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})

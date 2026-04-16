@@ -68,11 +68,11 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
     )
 
     client_name_msg = current_user.get('client_name', 'Valet Guys')
-    message = f"Thank you for parking at {client_name_msg}. We hope you enjoyed your time here.\nThe Valet Guys"
+    message = f"Thank you for parking with the Valet Guys at {client_name_msg}!\n\nDrive Safe!"
     await send_whatsapp_message(
         vehicle['phone_number'], message,
         content_sid=WA_TEMPLATE_TIP,
-        content_variables={"1": current_user.get('name', 'your valet'), "2": client_name_msg}
+        content_variables={"1": client_name_msg}
     )
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
