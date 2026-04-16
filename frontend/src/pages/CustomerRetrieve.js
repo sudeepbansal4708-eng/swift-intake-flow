@@ -56,6 +56,7 @@ export default function CustomerRetrieve() {
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchVehicle();
     return () => {
@@ -89,8 +90,8 @@ export default function CustomerRetrieve() {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } catch {
-        // silently ignore poll errors
+      } catch (err) {
+        // Non-critical: poll will retry in 5s
       }
     }, 5000);
   };

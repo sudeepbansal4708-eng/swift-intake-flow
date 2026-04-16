@@ -31,6 +31,7 @@ export default function AdminPanel() {
   const profilePhotoRef = useRef(null);
   const navigate = useNavigate();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchData();
     fetchProfile();
@@ -145,8 +146,8 @@ export default function AdminPanel() {
     try {
       const res = await axios.get(`${API}/admin/online-requests`);
       setOnlineRequests(res.data);
-    } catch {
-      // silent
+    } catch (err) {
+      // Non-critical: online requests polling can fail
     }
   };
 

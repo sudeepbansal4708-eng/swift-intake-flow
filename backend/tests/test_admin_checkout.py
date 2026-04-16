@@ -12,8 +12,8 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 # Test credentials
 ADMIN_PHONE = "+919373991136"
 VALET_PHONE = "+919999888877"
-SUPER_ADMIN_EMAIL = "superadmin@swiftvalet.com"
-SUPER_ADMIN_PASSWORD = "superadmin123"
+SUPER_ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com")
+SUPER_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")
 
 
 @pytest.fixture(scope="module")

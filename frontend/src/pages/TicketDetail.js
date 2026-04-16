@@ -54,7 +54,7 @@ export default function TicketDetail() {
       const foundTicket = response.data.find(t => t.id === ticketId);
       setTicket(foundTicket);
     } catch (error) {
-      console.error('Failed to fetch ticket:', error);
+      toast.error('Failed to load ticket details');
     } finally {
       setLoading(false);
     }

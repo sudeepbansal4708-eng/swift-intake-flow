@@ -333,8 +333,8 @@ export default function AdminReporting() {
             {fin.payout && fin.payout.length > 0 && (
               <div>
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Valet Payout Summary</div>
-                {fin.payout.map((p, i) => (
-                  <div key={i} className="flex justify-between items-center py-1.5 border-t border-zinc-800/50">
+                {fin.payout.map((p) => (
+                  <div key={p.valet_name || p.valet_id} className="flex justify-between items-center py-1.5 border-t border-zinc-800/50">
                     <span className="text-sm text-zinc-300">{p.valet_name}</span>
                     <span className="text-sm text-emerald-400 font-medium">₹{p.payout_amount}</span>
                   </div>

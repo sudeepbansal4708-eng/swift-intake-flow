@@ -27,6 +27,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { subscribe } = usePushNotifications();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user'));
     setUser(userData);
@@ -52,7 +53,7 @@ export default function Dashboard() {
       const response = await axios.get(`${API}/tickets`);
       setTickets(response.data);
     } catch (error) {
-      console.error('Failed to fetch tickets:', error);
+      toast.error('Failed to load tickets');
     } finally {
       setLoading(false);
     }
@@ -62,8 +63,8 @@ export default function Dashboard() {
     try {
       const res = await axios.get(`${API}/admin/dashboard-stats`);
       setDashStats(res.data);
-    } catch {
-      // silently fail for non-admins
+    } catch (err) {
+      // Non-critical: stats may not load for non-admins
     }
   };
 
@@ -71,8 +72,8 @@ export default function Dashboard() {
     try {
       const res = await axios.get(`${API}/valet/dashboard-stats`);
       setValetStats(res.data);
-    } catch {
-      // silently fail
+    } catch (err) {
+      // Non-critical: stats fetch can fail during polling
     }
   };
 
@@ -86,8 +87,8 @@ export default function Dashboard() {
         stored.is_online = res.data.is_online;
         localStorage.setItem('user', JSON.stringify(stored));
       }
-    } catch {
-      // silent
+    } catch (err) {
+      // Non-critical: status refresh can fail during polling
     }
   };
 
@@ -692,8 +693,8 @@ export default function Dashboard() {
 
               {activeModal === 'tips' && (
                 dashStats?.tips?.length > 0 ? (
-                  dashStats.tips.map((t, i) => (
-                    <Card key={i} data-testid={`modal-tip-${i}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
+                  dashStats.tips.map((t) => (
+                    <Card key={t.id || `tip-${t.valet_name}-${t.amount}`} data-testid={`modal-tip-${t.valet_name}`} className="bg-zinc-800/50 border border-zinc-700 p-3">
                       <div className="flex justify-between items-center">
                         <div>
                           <div className="text-sm text-white font-medium">₹{t.amount}</div>

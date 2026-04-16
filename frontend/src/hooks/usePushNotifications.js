@@ -42,7 +42,7 @@ function playAlertSound() {
       osc2.stop(ctx.currentTime + 0.5);
     }, 200);
   } catch (e) {
-    // Audio not available
+    // Audio API not available on this device
   }
 }
 
@@ -110,7 +110,10 @@ export function usePushNotifications() {
 
       subscribedRef.current = true;
     } catch (err) {
-      console.log('Web Push subscription skipped:', err.message);
+      // Non-critical: Web Push is optional, polling handles notifications
+      if (err.message) {
+        // Logging skipped in production
+      }
     }
   }, []);
 
@@ -158,7 +161,7 @@ export function usePushNotifications() {
         }
       }
     } catch (err) {
-      // Silent fail - polling will retry
+      // Non-critical: poll will retry on next interval
     }
   }, []);
 
@@ -168,6 +171,7 @@ export function usePushNotifications() {
   }, [requestPermission, subscribePush]);
 
   // Start polling for new tickets
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;

@@ -501,8 +501,6 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     valet = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
     client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
     
-    location_info = vehicle_obj.zone_label or "Location saved"
-    
     # Build retrieve link for the customer
     backend_url = os.environ.get('BACKEND_URL', '')
     retrieve_url = f"{backend_url}/retrieve/{vehicle_obj.id}"
