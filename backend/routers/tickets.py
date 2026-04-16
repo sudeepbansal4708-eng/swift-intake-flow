@@ -149,10 +149,13 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
 
 
 @router.get("/tickets")
-async def get_tickets(status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_tickets(status: Optional[str] = None, include_completed: bool = False, current_user: dict = Depends(get_current_user)):
     query = {}
     if status:
         query['status'] = status
+    elif not include_completed:
+        # By default, exclude completed/returned tickets from the dashboard
+        query['status'] = {"$nin": ["completed", "returned"]}
 
     client_id = current_user.get('client_id')
     if client_id and current_user['role'] in ['valet', 'admin']:
