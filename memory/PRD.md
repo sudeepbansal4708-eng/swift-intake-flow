@@ -73,6 +73,9 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - Super Admin home screen now shows SuperAdminPanel content directly (analytics, client management)
 - Super Admin no longer sees ticket claiming UI or bottom action ribbon
 - Crown navigation icon removed — super admin content is the home screen
+- Email field removed from admin and valet registration (auto-generated from phone number)
+- All phone fields prefilled with +91
+- Push notifications enabled: browser notification permission prompt, polling-based alerts with audio, Web Push via service worker, PWA manifest
 
 ## Tech Stack
 - Backend: FastAPI, Motor (async MongoDB), Pydantic, JWT, Twilio SDK
