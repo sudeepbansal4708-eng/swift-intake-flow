@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
@@ -6,8 +6,47 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation, AlertTriangle, RotateCcw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation, AlertTriangle, RotateCcw, ExternalLink, TimerReset } from 'lucide-react';
 import { toast } from 'sonner';
+
+function playTimerAlert() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Urgent triple beep
+    [0, 300, 600].forEach((delay) => {
+      setTimeout(() => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 1200;
+        osc.type = 'square';
+        gain.gain.value = 0.4;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.stop(ctx.currentTime + 0.3);
+      }, delay);
+    });
+  } catch (e) {
+    // Audio not available
+  }
+}
+
+function showTimerNotification(plate) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const notif = new Notification('Timer Expired!', {
+      body: `Customer no-show for ${plate}. Extend or park back.`,
+      icon: '/favicon.ico',
+      tag: 'timer-expired',
+      renotify: true,
+      requireInteraction: true,
+    });
+    notif.onclick = () => { window.focus(); notif.close(); };
+  } catch (e) {
+    // Notification not supported
+  }
+}
 
 export default function TicketDetail() {
   const { ticketId } = useParams();
@@ -21,6 +60,8 @@ export default function TicketDetail() {
     gps_longitude: null
   });
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [extendLoading, setExtendLoading] = useState(false);
+  const timerExpiredRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +72,7 @@ export default function TicketDetail() {
 
   useEffect(() => {
     if (ticket?.status === 'arrived' && ticket.arrived_at) {
+      timerExpiredRef.current = false;
       const arrivedTime = new Date(ticket.arrived_at);
       const waitSeconds = (ticket.wait_timer || 5) * 60;
       const updateTimer = setInterval(() => {
@@ -39,8 +81,17 @@ export default function TicketDetail() {
         const remaining = Math.max(waitSeconds - elapsed, 0);
         setTimer(remaining);
 
-        if (remaining === 0) {
+        if (remaining === 0 && !timerExpiredRef.current) {
+          timerExpiredRef.current = true;
           clearInterval(updateTimer);
+          // Fire notification
+          const plate = ticket.vehicle?.license_plate || 'Vehicle';
+          playTimerAlert();
+          showTimerNotification(plate);
+          toast.error(`Timer expired for ${plate}! Customer no-show.`, {
+            duration: 15000,
+            description: 'Extend the timer or park the car back.',
+          });
         }
       }, 1000);
 
@@ -113,6 +164,20 @@ export default function TicketDetail() {
       setTimeout(() => navigate('/'), 1500);
     } catch (error) {
       toast.error('Failed to update location');
+    }
+  };
+
+  const handleExtendTimer = async () => {
+    setExtendLoading(true);
+    try {
+      await axios.put(`${API}/tickets/${ticketId}/extend`);
+      toast.success('Timer extended by 5 minutes');
+      timerExpiredRef.current = false;
+      fetchTicket();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to extend timer');
+    } finally {
+      setExtendLoading(false);
     }
   };
 
@@ -263,7 +328,7 @@ export default function TicketDetail() {
         {ticket.status === 'arrived' && timer !== null && (
           <Card className={`backdrop-blur-md p-6 text-center ${
             timer === 0
-              ? 'bg-red-950/30 border border-red-800/50 animate-pulse'
+              ? 'bg-red-950/30 border border-red-800/50'
               : 'bg-amber-950/20 border border-amber-900/50'
           }`}>
             <Clock className={`w-12 h-12 mx-auto mb-3 ${timer === 0 ? 'text-red-400' : 'text-amber-400'}`} />
@@ -280,9 +345,38 @@ export default function TicketDetail() {
               </div>
             )}
             {timer === 0 && (
-              <div className="mt-3 p-2 bg-red-950/30 border border-red-800/30 rounded text-red-300 text-xs">
-                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
-                Ghosting protocol active — return the car to a parking spot
+              <div className="mt-4 space-y-3">
+                <div className="p-2 bg-red-950/30 border border-red-800/30 rounded text-red-300 text-xs mb-3">
+                  <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                  Customer no-show. Choose an action below.
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    data-testid="extend-timer-button"
+                    onClick={handleExtendTimer}
+                    disabled={extendLoading}
+                    className="flex-1 h-12 rounded-lg font-medium transition-all active:scale-95 bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-500/50"
+                  >
+                    <TimerReset className="w-4 h-4 mr-2" />
+                    {extendLoading ? 'Extending...' : 'EXTEND 5 MIN'}
+                  </Button>
+                  <Button
+                    data-testid="park-back-button"
+                    onClick={() => setShowReturnForm(true)}
+                    className="flex-1 h-12 rounded-lg font-medium transition-all active:scale-95 bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)] border border-red-500/50"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    PARK BACK
+                  </Button>
+                </div>
+                <Button
+                  data-testid="handover-button-late"
+                  onClick={() => updateStatus('completed')}
+                  variant="outline"
+                  className="w-full h-10 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-zinc-700 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300 text-sm"
+                >
+                  Customer showed up — Complete Handover
+                </Button>
               </div>
             )}
           </Card>
@@ -357,26 +451,7 @@ export default function TicketDetail() {
 
           {ticket.status === 'arrived' && !showReturnForm && (
             <>
-              {timer === 0 ? (
-                <>
-                  <Button
-                    data-testid="ghost-return-button"
-                    onClick={() => setShowReturnForm(true)}
-                    className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)] border border-red-500/50"
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    RETURN TO PARK (GHOSTED)
-                  </Button>
-                  <Button
-                    data-testid="handover-button"
-                    onClick={() => updateStatus('completed')}
-                    variant="outline"
-                    className="w-full h-10 rounded-lg font-medium transition-all active:scale-95 bg-transparent border border-zinc-700 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300 text-sm"
-                  >
-                    Customer showed up — Complete Handover
-                  </Button>
-                </>
-              ) : (
+              {timer !== 0 && (
                 <>
                   <Button
                     data-testid="handover-button"

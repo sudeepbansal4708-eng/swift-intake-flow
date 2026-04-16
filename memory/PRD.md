@@ -51,7 +51,11 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 
 ### Ghosting Protocol
 - Customizable countdown timer after car arrives
-- "RETURN TO PARK (GHOSTED)" action when timer expires
+- When timer expires: browser notification + audio alert + toast notification to valet
+- Two action buttons on expiry: **Extend (5 min)** or **Park Back**
+- Extend resets arrived_at to now, restarting the countdown
+- "Customer showed up" fallback option to complete handover even after expiry
+- "RETURN TO PARK (GHOSTED)" action with new location capture
 
 ### Shift Management
 - Admin toggle for online/offline valets

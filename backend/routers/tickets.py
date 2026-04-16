@@ -204,6 +204,25 @@ async def get_tickets(status: Optional[str] = None, include_completed: bool = Fa
     return tickets
 
 
+@router.put("/tickets/{ticket_id}/extend")
+async def extend_ticket_timer(ticket_id: str, current_user: dict = Depends(get_current_user)):
+    """Extend the wait timer by 5 minutes from now."""
+    ticket = await db.tickets.find_one({"id": ticket_id, "status": "arrived"}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=400, detail="Ticket not in arrived state")
+
+    new_arrived_at = datetime.now(timezone.utc).isoformat()
+    wait_timer = ticket.get('wait_timer', 5)
+
+    await db.tickets.update_one(
+        {"id": ticket_id},
+        {"$set": {"arrived_at": new_arrived_at, "wait_timer": wait_timer}}
+    )
+
+    return {"message": "Timer extended by 5 minutes", "arrived_at": new_arrived_at, "wait_timer": wait_timer}
+
+
+
 @router.put("/tickets/{ticket_id}/claim")
 async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_user)):
     ticket = await db.tickets.find_one({"id": ticket_id, "status": "open"}, {"_id": 0})
