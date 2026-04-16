@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Car, MapPin, Phone, Clock, CheckCircle, Navigation, AlertTriangle, RotateCcw, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function TicketDetail() {
@@ -50,11 +50,11 @@ export default function TicketDetail() {
 
   const fetchTicket = async () => {
     try {
-      const response = await axios.get(`${API}/tickets`);
+      const response = await axios.get(`${API}/tickets?include_completed=true`);
       const foundTicket = response.data.find(t => t.id === ticketId);
       setTicket(foundTicket);
     } catch (error) {
-      toast.error('Failed to load ticket details');
+      // Silent on polling failures
     } finally {
       setLoading(false);
     }
@@ -101,14 +101,12 @@ export default function TicketDetail() {
 
   const handleReturnToPark = async () => {
     try {
-      // Update vehicle location
       await axios.put(`${API}/vehicles/${ticket.vehicle_id}/location`, {
         zone_label: returnLocation.zone_label,
         gps_latitude: returnLocation.gps_latitude || 0,
         gps_longitude: returnLocation.gps_longitude || 0
       });
 
-      // Update ticket status
       await axios.put(`${API}/tickets/${ticketId}/status?status=returned`);
       
       toast.success('Vehicle returned to new location!');
@@ -122,6 +120,10 @@ export default function TicketDetail() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getGoogleMapsUrl = (lat, lng) => {
+    return `https://www.google.com/maps?q=${lat},${lng}`;
   };
 
   if (loading || !ticket) {
@@ -145,6 +147,7 @@ export default function TicketDetail() {
       ];
 
   const currentStepIndex = statusSteps.findIndex(s => s.key === ticket.status);
+  const hasGps = ticket.vehicle?.gps_latitude && ticket.vehicle.gps_latitude !== 0;
 
   return (
     <div className="mobile-container">
@@ -165,6 +168,7 @@ export default function TicketDetail() {
           </h1>
         </div>
 
+        {/* Vehicle Info Card */}
         <Card className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -182,21 +186,6 @@ export default function TicketDetail() {
                 <Phone className="w-4 h-4" />
                 <span>{ticket.customer_phone}</span>
               </div>
-              {ticket.vehicle?.zone_label && (
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <MapPin className="w-4 h-4" />
-                  <span>{ticket.vehicle.zone_label}</span>
-                </div>
-              )}
-              {ticket.vehicle?.tag_number && (
-                <div className="flex items-center gap-2 p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg">
-                  <span className="text-2xl">🏷️</span>
-                  <div>
-                    <div className="text-amber-400 font-bold text-lg">{ticket.vehicle.tag_number}</div>
-                    <div className="text-xs text-amber-400/70">Key Tag Number</div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {ticket.vehicle?.photo_url && (
@@ -207,6 +196,7 @@ export default function TicketDetail() {
           </div>
         </Card>
 
+        {/* Retrieval Information Card - shown when claimed */}
         {ticket.status === 'claimed' && (
           <Card className="bg-blue-950/30 backdrop-blur-md border border-blue-900/50 p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -242,22 +232,29 @@ export default function TicketDetail() {
                 </div>
               )}
 
-              {ticket.vehicle?.gps_latitude && ticket.vehicle.gps_latitude !== 0 && (
-                <div className="flex items-start gap-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
+              {hasGps && (
+                <a
+                  href={getGoogleMapsUrl(ticket.vehicle.gps_latitude, ticket.vehicle.gps_longitude)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="google-maps-link"
+                  className="flex items-start gap-3 p-3 bg-emerald-950/20 rounded-lg border border-emerald-900/50 hover:bg-emerald-950/40 transition-colors block"
+                >
                   <Navigation className="w-5 h-5 text-emerald-400 mt-0.5" />
                   <div className="flex-1">
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">GPS Coordinates</div>
-                    <div className="text-white text-sm font-mono">
-                      {ticket.vehicle.gps_latitude.toFixed(6)}, {ticket.vehicle.gps_longitude.toFixed(6)}
+                    <div className="text-xs text-emerald-400/70 uppercase tracking-wider mb-1">GPS Location</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-medium">Open in Google Maps</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
                   </div>
-                </div>
+                </a>
               )}
             </div>
 
             <div className="mt-4 p-3 bg-blue-950/20 border border-blue-900/30 rounded-lg">
               <p className="text-sm text-blue-300 text-center">
-                👆 Use this info to locate the vehicle. Click below when you've arrived with the car.
+                Use this info to locate the vehicle. Click below when you've arrived with the car.
               </p>
             </div>
           </Card>
@@ -354,7 +351,7 @@ export default function TicketDetail() {
               onClick={() => updateStatus('arrived')}
               className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-500/50"
             >
-              🚗 I'VE ARRIVED WITH CAR
+              I'VE ARRIVED WITH CAR
             </Button>
           )}
 
@@ -430,7 +427,7 @@ export default function TicketDetail() {
                     className="flex-1 h-12 rounded-lg font-medium transition-all active:scale-95 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
                   >
                     <Navigation className="w-4 h-4 mr-2" />
-                    {gettingLocation ? 'Getting...' : returnLocation.gps_latitude ? '✅ Captured' : 'Capture GPS'}
+                    {gettingLocation ? 'Getting...' : returnLocation.gps_latitude ? 'Captured' : 'Capture GPS'}
                   </Button>
                   {!returnLocation.gps_latitude && (
                     <Button
@@ -443,9 +440,16 @@ export default function TicketDetail() {
                   )}
                 </div>
                 {returnLocation.gps_latitude && returnLocation.gps_latitude !== 0 && (
-                  <p className="text-xs text-emerald-400 mt-2">
-                    📍 {returnLocation.gps_latitude.toFixed(6)}, {returnLocation.gps_longitude.toFixed(6)}
-                  </p>
+                  <a
+                    href={getGoogleMapsUrl(returnLocation.gps_latitude, returnLocation.gps_longitude)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-emerald-400 mt-2 flex items-center gap-1 hover:underline"
+                  >
+                    <Navigation className="w-3 h-3" />
+                    View on Google Maps
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 )}
               </div>
 
@@ -469,7 +473,7 @@ export default function TicketDetail() {
                 disabled={!returnLocation.zone_label}
                 className="w-full h-12 rounded-lg font-medium transition-all active:scale-95 bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-500/50"
               >
-                🔄 PARK AT NEW LOCATION
+                PARK AT NEW LOCATION
               </Button>
             </Card>
           )}

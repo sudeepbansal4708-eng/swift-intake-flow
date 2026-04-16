@@ -192,7 +192,9 @@ async def get_tickets(status: Optional[str] = None, include_completed: bool = Fa
                     "phone_number": vehicle['phone_number'],
                     "tag_number": vehicle.get('tag_number'),
                     "zone_label": vehicle.get('zone_label'),
-                    "photo_url": vehicle.get('photo_url')
+                    "photo_url": vehicle.get('photo_url'),
+                    "gps_latitude": vehicle.get('gps_latitude'),
+                    "gps_longitude": vehicle.get('gps_longitude'),
                 }
     else:
         for ticket in tickets:
