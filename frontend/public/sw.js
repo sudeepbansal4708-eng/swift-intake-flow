@@ -18,7 +18,8 @@ self.addEventListener('push', function(event) {
     vibrate: [200, 100, 200, 100, 200],
     data: data.data || {},
     actions: data.data?.type === 'retrieval' ? [
-      { action: 'open', title: 'View Ticket' }
+      { action: 'claim', title: 'Claim Ticket' },
+      { action: 'open', title: 'View' }
     ] : [],
     tag: data.data?.ticket_id || 'valetguys-notification',
     renotify: true,
@@ -36,9 +37,29 @@ self.addEventListener('notificationclick', function(event) {
   const ticketId = event.notification.data?.ticket_id;
   let url = '/';
 
-  if (event.action === 'open' && ticketId) {
+  if (event.action === 'claim' && ticketId) {
+    // Claim the ticket via API, then navigate to it
     url = `/ticket/${ticketId}`;
-  } else if (ticketId) {
+    event.waitUntil(
+      fetch(`/api/tickets/${ticketId}/claim`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + event.notification.data?.token }
+      }).catch(() => {}).then(() => {
+        return clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+          for (let client of clientList) {
+            if (client.url.includes(self.location.origin) && 'focus' in client) {
+              client.navigate(url);
+              return client.focus();
+            }
+          }
+          return clients.openWindow(url);
+        });
+      })
+    );
+    return;
+  }
+
+  if (ticketId) {
     url = `/ticket/${ticketId}`;
   }
 

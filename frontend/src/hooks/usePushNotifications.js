@@ -139,20 +139,39 @@ export function usePushNotifications() {
           const tag = ticket.vehicle?.tag_number;
           const tagStr = tag ? ` (Tag #${tag})` : '';
 
-          toast.info(`New Retrieval: ${plate}${tagStr}`, {
-            description: 'A vehicle retrieval has been initiated',
-            duration: 10000,
-            action: {
-              label: 'View',
-              onClick: () => { window.location.href = `/ticket/${ticket.id}`; }
-            }
-          });
+          if (ticket.status === 'open') {
+            // Open ticket — offer Claim action
+            toast.info(`New Retrieval: ${plate}${tagStr}`, {
+              description: 'Tap Claim to pick up this car',
+              duration: 30000,
+              action: {
+                label: 'Claim',
+                onClick: async () => {
+                  try {
+                    await axios.put(`${API}/tickets/${ticket.id}/claim`);
+                    window.location.href = `/ticket/${ticket.id}`;
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'Failed to claim');
+                  }
+                }
+              }
+            });
+          } else {
+            toast.info(`Retrieval Update: ${plate}${tagStr}`, {
+              description: `Status: ${ticket.status.replace('_', ' ')}`,
+              duration: 10000,
+              action: {
+                label: 'View',
+                onClick: () => { window.location.href = `/ticket/${ticket.id}`; }
+              }
+            });
+          }
 
           playAlertSound();
 
           showBrowserNotification(
-            'New Retrieval Request',
-            `Car ${plate}${tagStr} — retrieval in progress!`,
+            ticket.status === 'open' ? 'New Retrieval — Tap to Claim' : 'Retrieval Update',
+            `Car ${plate}${tagStr}${ticket.status === 'open' ? ' — claim this ticket!' : ''}`,
             ticket.id
           );
         }
