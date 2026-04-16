@@ -35,7 +35,7 @@ export default function Dashboard() {
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user'));
     setUser(userData);
-    fetchTickets();
+    fetchTickets(true);
     if (userData?.role === 'admin') fetchDashStats();
     if (userData?.role === 'valet') fetchValetStats();
     refreshUserStatus();
@@ -57,12 +57,12 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchTickets = async () => {
+  const fetchTickets = async (showError = false) => {
     try {
       const response = await axios.get(`${API}/tickets`);
       setTickets(response.data);
     } catch (error) {
-      toast.error('Failed to load tickets');
+      if (showError) toast.error('Failed to load tickets');
     } finally {
       setLoading(false);
     }
