@@ -176,7 +176,7 @@ export default function Login({ setIsAuthenticated }) {
                 Login with OTP
               </h2>
             </div>
-            <p className="text-sm text-zinc-400 mb-4">Enter your phone number. We'll send a login code to your WhatsApp.</p>
+            <p className="text-sm text-zinc-400 mb-4">Enter your phone number. We'll send a login code via SMS.</p>
             <form onSubmit={handleRequestOTP} className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-zinc-400 mb-2 block uppercase tracking-wide">Phone Number</Label>
@@ -214,7 +214,7 @@ export default function Login({ setIsAuthenticated }) {
               </h2>
             </div>
             <p className="text-sm text-zinc-400 mb-4">
-              A 6-digit code was sent to <span className="text-white font-medium">{otpPhone}</span> via WhatsApp.
+              A 6-digit code was sent to <span className="text-white font-medium">{otpPhone}</span> via SMS.
             </p>
             <form onSubmit={handleVerifyOTP} className="space-y-4">
               <div>

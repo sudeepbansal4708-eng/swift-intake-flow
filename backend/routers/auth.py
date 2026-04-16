@@ -8,7 +8,7 @@ from config import db
 from models import User, UserCreate, UserLogin, OTPRequest, OTPVerify
 from utils import (
     create_access_token, verify_password, get_password_hash,
-    get_current_user, send_whatsapp_message,
+    get_current_user, send_sms,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -93,10 +93,10 @@ async def request_otp(data: OTPRequest):
     })
 
     message = f"Your Valet Guys login code is: {otp}\n\nThis code expires in 10 minutes."
-    result = await send_whatsapp_message(phone, message)
-    logging.info(f"OTP sent to {phone}: result={result}")
+    result = await send_sms(phone, message)
+    logging.info(f"OTP SMS sent to {phone}: result={result}")
 
-    return {"message": "OTP sent to your WhatsApp", "phone_number": phone, "dev_otp": otp}
+    return {"message": "OTP sent via SMS", "phone_number": phone, "dev_otp": otp}
 
 
 @router.post("/otp/verify")

@@ -84,6 +84,25 @@ async def send_whatsapp_message(phone_number: str, message: str, content_sid: st
         return {"status": "error", "message": str(e)}
 
 
+async def send_sms(phone_number: str, message: str):
+    """Send a plain SMS (always SMS, never WhatsApp). Used for OTP delivery."""
+    if not twilio_client or not TWILIO_WHATSAPP_FROM:
+        logger.warning(f"Twilio not configured. Would SMS to {phone_number}: {message}")
+        return {"status": "not_configured", "message": "Twilio credentials not set"}
+
+    try:
+        msg = twilio_client.messages.create(
+            from_=TWILIO_WHATSAPP_FROM,
+            to=phone_number,
+            body=message
+        )
+        logger.info(f"SMS sent: SID={msg.sid}, Status={msg.status}, To={phone_number}")
+        return {"status": "sent", "message_sid": msg.sid, "twilio_status": msg.status}
+    except Exception as e:
+        logger.error(f"SMS send error to {phone_number}: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
 async def send_push_notification(user_id: str, title: str, body: str, data: dict = None):
     """Send push notification to a specific user's subscribed devices."""
     if not VAPID_PRIVATE_KEY:

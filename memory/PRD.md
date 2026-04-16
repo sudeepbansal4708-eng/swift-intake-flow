@@ -10,9 +10,9 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - **Super Admin**: Manages Admins, platform-wide analytics (password login only)
 
 ## Authentication
-- OTP Login (Valets + Admins): Phone -> 6-digit OTP via WhatsApp -> 10-min expiry
+- OTP Login (Valets + Admins): Phone -> 6-digit OTP via **SMS** -> 10-min expiry
 - Password Login (Super Admin only): Email + password
-- OTP display removed (WhatsApp delivery is working)
+- OTP delivery switched from WhatsApp to SMS for reliability
 
 ## Completed Features
 
