@@ -27,7 +27,7 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - Bottom action ribbon (Park / Retrieve buttons)
 - Valet checkout capability with thank-you WhatsApp message
 - Polling-based in-app notifications for new tickets
-- 3 metric cards: Cars Parked/Retrieved Today, Tips Today
+- 3 metric cards: Cars Parked/Retrieved Today, Tips Today (Coming Soon)
 
 ### Customer Retrieval (Web-Based)
 - Public page at `/retrieve/:vehicleId`
@@ -39,8 +39,8 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - Parking notification with clickable retrieve URL
 - Claim: "Valet XXX is on the way to get your car"
 - Arrived: Includes deadline time (customizable timer)
-- Checkout: "Thank you for parking with Valet Guys at {client_name}"
-- Payment links removed (pending Razorpay integration)
+- Checkout: "Thank you for parking at [Client Name]. We hope you enjoyed your time here. The Valet Guys"
+- Payment links removed (pilot phase — no charges)
 
 ### Admin Features
 - Customizable wait timer (1-30 min, default 5)
@@ -57,24 +57,45 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - Admin toggle for online/offline valets
 - Only online valets can park/retrieve
 
-## Tech Stack
-- Backend: FastAPI, Motor (async MongoDB), Pydantic, JWT, Twilio SDK
-- Frontend: React, Tailwind CSS, Shadcn/UI, Recharts, Axios
-- Database: MongoDB
-
-## Code Quality (Applied Apr 2026)
+### Code Quality & Architecture (Apr 2026)
 - Fixed all empty catch blocks with descriptive comments
 - Fixed useEffect dependency arrays with eslint-disable annotations
 - Replaced array index keys with unique IDs
 - Removed console.error statements
 - Moved test credentials to environment variables
-- Fixed unused variable lint error
 - JWT error handling uses InvalidTokenError (not JWTError)
+- **Backend refactored from monolithic 2000-line server.py into modular router files**
+
+### Pilot Phase UI Changes (Feb 2026)
+- Tips/payment UI hidden with "COMING SOON" tags across Dashboard and AdminReporting
+- Thank-you message updated: "Thank you for parking at [Client Name]. We hope you enjoyed your time here. The Valet Guys"
+- Financial Reconciliation section in reporting shows "COMING SOON"
+
+## Tech Stack
+- Backend: FastAPI, Motor (async MongoDB), Pydantic, JWT, Twilio SDK
+- Frontend: React, Tailwind CSS, Shadcn/UI, Recharts, Axios
+- Database: MongoDB
+
+## Backend Architecture
+```
+/app/backend/
+├── server.py          # Slim entry point (app init, router includes, startup seed)
+├── config.py          # Shared config (DB, security, Twilio, VAPID, templates)
+├── models.py          # All Pydantic models
+├── utils.py           # Auth helpers, messaging, notifications, fee utilities
+└── routers/
+    ├── auth.py        # /auth/* (login, register, OTP)
+    ├── vehicles.py    # /vehicles/* (CRUD, upload, lookup)
+    ├── tickets.py     # /tickets/*, /valet/* (lifecycle, dashboard, online requests)
+    ├── admin.py       # /admin/* (valets mgmt, profile, dashboard, reporting, checkout)
+    ├── super_admin.py # /super-admin/* (clients, analytics, admin mgmt)
+    └── public.py      # /retrieve/*, /push/*, /whatsapp/webhook
+```
 
 ## Current Users
 - Super Admin: superadmin@swiftvalet.com / superadmin123
 
 ## Upcoming Tasks
-1. **P1**: Integrate Razorpay for valet fees and tips
+1. **P1**: Integrate payment processing (Stripe/Razorpay) for valet fees and tips (post-pilot)
 2. **P2**: Drip reminder for tips (12-hour follow-up)
-3. **P3**: Refactor server.py into modular route files
+3. **P3**: Real-time push notifications for PWA
