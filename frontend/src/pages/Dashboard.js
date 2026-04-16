@@ -559,7 +559,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom Action Ribbon */}
-      {(user?.role === 'valet' || isAdmin) && user?.is_online !== false && (
+      {(isAdmin || (user?.role === 'valet' && user?.is_online)) && (
         <div className="fixed bottom-0 left-0 right-0 z-[9998] bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 py-3 flex gap-3" data-testid="bottom-ribbon">
           <button
             data-testid="ribbon-park-button"
