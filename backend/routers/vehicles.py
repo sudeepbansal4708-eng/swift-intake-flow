@@ -34,12 +34,20 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     backend_url = os.environ.get('BACKEND_URL', '')
     retrieve_url = f"{backend_url}/retrieve/{vehicle_obj.id}"
 
-    message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked at {retrieve_url} by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
+    # Build Google Maps link from GPS if available, otherwise use retrieve URL
+    gps_lat = vehicle_obj.gps_latitude
+    gps_lng = vehicle_obj.gps_longitude
+    if gps_lat and gps_lng and gps_lat != 0:
+        maps_link = f"https://www.google.com/maps?q={gps_lat},{gps_lng}"
+    else:
+        maps_link = retrieve_url
+
+    message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked at {maps_link} by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
 
     sms_result = await send_whatsapp_message(
         vehicle_obj.phone_number, message,
         content_sid=WA_TEMPLATE_PARKING,
-        content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": retrieve_url, "4": valet_name}
+        content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": maps_link, "4": valet_name}
     )
     logger.info(f"Message result for {vehicle_obj.phone_number}: {sms_result}")
 
