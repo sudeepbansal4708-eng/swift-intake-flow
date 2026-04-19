@@ -25,8 +25,8 @@ class TestAuthFlows:
     def test_super_admin_login(self):
         """Super admin can login with email/password"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "superadmin@swiftvalet.com",
-            "password": "superadmin123"
+            "email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"),
+            "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")
         })
         print(f"Super admin login: status={response.status_code}")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
@@ -352,8 +352,8 @@ class TestDatabaseCleanup:
     def super_admin_token(self):
         """Get super admin token"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "superadmin@swiftvalet.com",
-            "password": "superadmin123"
+            "email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"),
+            "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")
         })
         return response.json()["token"]
     

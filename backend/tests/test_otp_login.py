@@ -155,7 +155,7 @@ class TestAdminPasswordLogin:
         """Test: Super Admin login with password works (superadmin@swiftvalet.com)"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"email": "superadmin@swiftvalet.com", "password": "superadmin123"},
+            json={"email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")},
             headers={"Content-Type": "application/json"}
         )
         
@@ -165,7 +165,7 @@ class TestAdminPasswordLogin:
         assert "token" in data
         assert "user" in data
         assert data["user"]["role"] == "super_admin"
-        assert data["user"]["email"] == "superadmin@swiftvalet.com"
+        assert data["user"]["email"] == os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com")
         print(f"SUCCESS: Super Admin login works - role: {data['user']['role']}")
 
 

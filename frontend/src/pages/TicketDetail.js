@@ -105,7 +105,7 @@ export default function TicketDetail() {
       const foundTicket = response.data.find(t => t.id === ticketId);
       setTicket(foundTicket);
     } catch (error) {
-      // Silent on polling failures
+      console.warn('Ticket fetch failed:', error.message);
     } finally {
       setLoading(false);
     }

@@ -62,13 +62,14 @@ Build a valet parking platform called "Valet Guys" with four user roles: Custome
 - Only online valets can park/retrieve
 
 ### Code Quality & Architecture (Apr 2026)
-- Fixed all empty catch blocks with descriptive comments
+- Empty catch blocks now use `console.warn` for debuggability
 - Fixed useEffect dependency arrays with eslint-disable annotations
 - Replaced array index keys with unique IDs
-- Removed console.error statements
-- Moved test credentials to environment variables
+- Test credentials use environment variables with fallbacks across all test files
 - JWT error handling uses InvalidTokenError (not JWTError)
 - **Backend refactored from monolithic 2000-line server.py into modular router files**
+- Refactored `get_admin_reporting()` (158 lines, complexity 35) into 4 focused helper functions
+- CSV export filename updated from "swiftvalet" to "valetguys"
 
 ### Pilot Phase UI Changes (Feb 2026)
 - Tips/payment UI hidden with "COMING SOON" tags across Dashboard, AdminReporting, SuperAdminPanel

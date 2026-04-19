@@ -73,7 +73,7 @@ export default function Dashboard() {
       const res = await axios.get(`${API}/admin/dashboard-stats`);
       setDashStats(res.data);
     } catch (err) {
-      // Non-critical: stats may not load for non-admins
+      console.warn('Dashboard stats fetch failed:', err.message);
     }
   };
 
@@ -82,7 +82,7 @@ export default function Dashboard() {
       const res = await axios.get(`${API}/valet/dashboard-stats`);
       setValetStats(res.data);
     } catch (err) {
-      // Non-critical: stats fetch can fail during polling
+      console.warn('Valet stats fetch failed:', err.message);
     }
   };
 
@@ -97,7 +97,7 @@ export default function Dashboard() {
         localStorage.setItem('user', JSON.stringify(stored));
       }
     } catch (err) {
-      // Non-critical: status refresh can fail during polling
+      console.warn('User status refresh failed:', err.message);
     }
   };
 

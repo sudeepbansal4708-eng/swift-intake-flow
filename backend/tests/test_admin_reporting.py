@@ -19,8 +19,8 @@ class TestAdminReporting:
         
         # Login as super admin
         login_response = self.session.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "superadmin@swiftvalet.com",
-            "password": "superadmin123"
+            "email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"),
+            "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")
         })
         
         if login_response.status_code == 200:
@@ -131,7 +131,7 @@ class TestAdminReporting:
         # Check Content-Disposition header for filename
         content_disp = response.headers.get("Content-Disposition", "")
         assert "attachment" in content_disp, f"Expected attachment, got {content_disp}"
-        assert "swiftvalet_payout" in content_disp, f"Filename should contain 'swiftvalet_payout'"
+        assert "valetguys_payout" in content_disp, f"Filename should contain 'valetguys_payout'"
 
     def test_admin_reporting_export_csv_has_headers(self):
         """CSV export should have proper headers"""

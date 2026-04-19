@@ -91,7 +91,7 @@ export default function CustomerRetrieve() {
           pollRef.current = null;
         }
       } catch (err) {
-        // Non-critical: poll will retry in 5s
+        console.warn('Customer retrieval poll failed:', err.message);
       }
     }, 5000);
   };

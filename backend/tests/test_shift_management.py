@@ -16,8 +16,8 @@ import uuid
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 # Test credentials
-SUPER_ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com")
-SUPER_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")
+SUPER_ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"))
+SUPER_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123"))
 ADMIN_PHONE = "+919373991136"
 VALET_PHONE = "+919922668866"  # Jennifer Smith - has client_id
 

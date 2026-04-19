@@ -147,7 +147,7 @@ export default function AdminPanel() {
       const res = await axios.get(`${API}/admin/online-requests`);
       setOnlineRequests(res.data);
     } catch (err) {
-      // Non-critical: online requests polling can fail
+      console.warn('Online requests fetch failed:', err.message);
     }
   };
 

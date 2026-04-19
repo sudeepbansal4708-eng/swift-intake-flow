@@ -341,110 +341,79 @@ async def get_tips(current_user: dict = Depends(get_current_user)):
     return tips
 
 
-@router.get("/reporting")
-async def get_admin_reporting(current_user: dict = Depends(get_current_user)):
-    """Admin Reporting Dashboard - The Nightly Pulse."""
-    if current_user['role'] not in ['admin', 'super_admin']:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_iso = today_start.isoformat()
-
-    vehicle_query = {"parked_at": {"$gte": today_iso}}
-    ticket_query = {"created_at": {"$gte": today_iso}}
-
-    vehicles_today = await db.vehicles.find(vehicle_query, {"_id": 0}).to_list(5000)
-    all_tickets_today = await db.tickets.find(ticket_query, {"_id": 0}).to_list(5000)
-
-    cars_parked = len(vehicles_today)
-    completed_tickets = [t for t in all_tickets_today if t.get('status') == 'completed']
-    cars_retrieved = len(completed_tickets)
-    active_inventory = cars_parked - cars_retrieved
-
+def _calc_retrieval_stats(completed_tickets):
+    """Calculate average retrieval time and status indicator."""
     retrieval_times = []
     for t in completed_tickets:
         try:
             created = datetime.fromisoformat(t['created_at'])
             completed = datetime.fromisoformat(t['completed_at'])
-            diff_mins = (completed - created).total_seconds() / 60.0
-            retrieval_times.append(diff_mins)
+            retrieval_times.append((completed - created).total_seconds() / 60.0)
         except Exception:
             pass
+    avg = round(sum(retrieval_times) / len(retrieval_times), 1) if retrieval_times else 0
+    status = "red" if avg > 12 else ("amber" if avg > 8 else "green")
+    return avg, status
 
-    avg_retrieval_mins = round(sum(retrieval_times) / len(retrieval_times), 1) if retrieval_times else 0
-    if avg_retrieval_mins == 0:
-        retrieval_status = "green"
-    elif avg_retrieval_mins < 8:
-        retrieval_status = "green"
-    elif avg_retrieval_mins <= 12:
-        retrieval_status = "amber"
-    else:
-        retrieval_status = "red"
 
-    tips_today = await db.tips.find({"created_at": {"$gte": today_iso}}, {"_id": 0}).to_list(5000)
-    total_tips = sum(t.get('amount', 0) for t in tips_today)
-    tip_links_sent = len(completed_tickets)
-    tips_paid = len([t for t in tips_today if t.get('status') == 'paid'])
-    collection_rate = round((tips_paid / tip_links_sent * 100), 1) if tip_links_sent > 0 else 0
+def _build_hourly_volume(vehicles_today, all_tickets_today):
+    """Build hourly intake/retrieval volume data."""
+    hourly = {h: {"hour": h, "intake": 0, "retrieval": 0} for h in range(24)}
+    for v in vehicles_today:
+        try:
+            hourly[datetime.fromisoformat(v['parked_at']).hour]["intake"] += 1
+        except Exception:
+            pass
+    for t in all_tickets_today:
+        try:
+            hourly[datetime.fromisoformat(t['created_at']).hour]["retrieval"] += 1
+        except Exception:
+            pass
+    return list(hourly.values())
 
+
+async def _build_leaderboard(vehicles_today, completed_tickets, tips_today):
+    """Build valet leaderboard from today's data."""
     valet_ids_parked = [v.get('parked_by') for v in vehicles_today if v.get('parked_by')]
     valet_ids_retrieved = [t.get('claimed_by') for t in completed_tickets if t.get('claimed_by')]
     all_valet_ids = list(set(valet_ids_parked + valet_ids_retrieved))
 
+    if not all_valet_ids:
+        return []
+
+    valet_users = await db.users.find({"id": {"$in": all_valet_ids}}, {"_id": 0}).to_list(500)
+    valet_map = {v['id']: v for v in valet_users}
     valets_data = []
-    if all_valet_ids:
-        valet_users = await db.users.find({"id": {"$in": all_valet_ids}}, {"_id": 0}).to_list(500)
-        valet_map = {v['id']: v for v in valet_users}
 
-        for vid in all_valet_ids:
-            valet_info = valet_map.get(vid, {})
-            parked_count = sum(1 for v in vehicles_today if v.get('parked_by') == vid)
-            retrieved_tickets = [t for t in completed_tickets if t.get('claimed_by') == vid]
-            retrieved_count = len(retrieved_tickets)
+    for vid in all_valet_ids:
+        valet_info = valet_map.get(vid, {})
+        parked_count = sum(1 for v in vehicles_today if v.get('parked_by') == vid)
+        retrieved_tickets = [t for t in completed_tickets if t.get('claimed_by') == vid]
 
-            valet_retrieval_times = []
-            for t in retrieved_tickets:
-                try:
-                    created = datetime.fromisoformat(t['created_at'])
-                    completed = datetime.fromisoformat(t['completed_at'])
-                    valet_retrieval_times.append((completed - created).total_seconds() / 60.0)
-                except Exception:
-                    pass
-            avg_speed = round(sum(valet_retrieval_times) / len(valet_retrieval_times), 1) if valet_retrieval_times else 0
+        valet_times = []
+        for t in retrieved_tickets:
+            try:
+                valet_times.append(
+                    (datetime.fromisoformat(t['completed_at']) - datetime.fromisoformat(t['created_at'])).total_seconds() / 60.0
+                )
+            except Exception:
+                pass
 
-            valet_tips = sum(t.get('amount', 0) for t in tips_today if t.get('valet_id') == vid)
-
-            valets_data.append({
-                "id": vid,
-                "name": valet_info.get('name', 'Unknown'),
-                "cars_parked": parked_count,
-                "cars_retrieved": retrieved_count,
-                "avg_retrieval_speed": avg_speed,
-                "tips_earned": valet_tips
-            })
+        valets_data.append({
+            "id": vid,
+            "name": valet_info.get('name', 'Unknown'),
+            "cars_parked": parked_count,
+            "cars_retrieved": len(retrieved_tickets),
+            "avg_retrieval_speed": round(sum(valet_times) / len(valet_times), 1) if valet_times else 0,
+            "tips_earned": sum(t.get('amount', 0) for t in tips_today if t.get('valet_id') == vid)
+        })
 
     valets_data.sort(key=lambda x: x['cars_parked'] + x['cars_retrieved'], reverse=True)
+    return valets_data
 
-    hourly = {}
-    for h in range(24):
-        hourly[h] = {"hour": h, "intake": 0, "retrieval": 0}
 
-    for v in vehicles_today:
-        try:
-            hour = datetime.fromisoformat(v['parked_at']).hour
-            hourly[hour]["intake"] += 1
-        except Exception:
-            pass
-
-    for t in all_tickets_today:
-        try:
-            hour = datetime.fromisoformat(t['created_at']).hour
-            hourly[hour]["retrieval"] += 1
-        except Exception:
-            pass
-
-    hourly_data = list(hourly.values())
-
+async def _build_waitlist():
+    """Build list of overdue tickets (waiting > 10 min)."""
     ten_mins_ago = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
     overdue_tickets = await db.tickets.find({
         "status": {"$in": ["open", "claimed", "en_route"]},
@@ -455,50 +424,68 @@ async def get_admin_reporting(current_user: dict = Depends(get_current_user)):
     for ot in overdue_tickets:
         vehicle = await db.vehicles.find_one({"id": ot.get('vehicle_id')}, {"_id": 0})
         created = datetime.fromisoformat(ot['created_at'])
-        wait_mins = round((datetime.now(timezone.utc) - created).total_seconds() / 60.0, 1)
         waitlist.append({
             "ticket_id": ot['id'],
             "status": ot['status'],
             "license_plate": vehicle.get('license_plate', 'N/A') if vehicle else 'N/A',
             "customer_phone": ot.get('customer_phone', 'N/A'),
-            "wait_minutes": wait_mins,
+            "wait_minutes": round((datetime.now(timezone.utc) - created).total_seconds() / 60.0, 1),
             "created_at": ot['created_at']
         })
 
     waitlist.sort(key=lambda x: x['wait_minutes'], reverse=True)
+    return waitlist
 
-    pending_tips = len([t for t in tips_today if t.get('status') == 'pending'])
+
+@router.get("/reporting")
+async def get_admin_reporting(current_user: dict = Depends(get_current_user)):
+    """Admin Reporting Dashboard - The Nightly Pulse."""
+    if current_user['role'] not in ['admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    today_iso = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    vehicles_today = await db.vehicles.find({"parked_at": {"$gte": today_iso}}, {"_id": 0}).to_list(5000)
+    all_tickets_today = await db.tickets.find({"created_at": {"$gte": today_iso}}, {"_id": 0}).to_list(5000)
+    tips_today = await db.tips.find({"created_at": {"$gte": today_iso}}, {"_id": 0}).to_list(5000)
+
+    completed_tickets = [t for t in all_tickets_today if t.get('status') == 'completed']
+    cars_parked = len(vehicles_today)
+    cars_retrieved = len(completed_tickets)
+
+    avg_retrieval_mins, retrieval_status = _calc_retrieval_stats(completed_tickets)
+    tips_paid = len([t for t in tips_today if t.get('status') == 'paid'])
+    tip_links_sent = len(completed_tickets)
+
+    leaderboard = await _build_leaderboard(vehicles_today, completed_tickets, tips_today)
+    hourly_volume = _build_hourly_volume(vehicles_today, all_tickets_today)
+    waitlist = await _build_waitlist()
+
     paid_tips_total = sum(t.get('amount', 0) for t in tips_today if t.get('status') == 'paid')
     platform_fee_rate = 0.05
-    platform_fees = round(paid_tips_total * platform_fee_rate, 2)
-
-    payout_data = []
-    for vd in valets_data:
-        valet_paid = sum(t.get('amount', 0) for t in tips_today if t.get('valet_id') == vd['id'] and t.get('status') == 'paid')
-        payout_data.append({
-            "valet_name": vd['name'],
-            "tips_earned": vd['tips_earned'],
-            "payout_amount": round(valet_paid * (1 - platform_fee_rate), 2)
-        })
 
     return {
         "summary": {
             "cars_parked": cars_parked,
             "cars_retrieved": cars_retrieved,
-            "active_inventory": active_inventory,
+            "active_inventory": cars_parked - cars_retrieved,
             "avg_retrieval_mins": avg_retrieval_mins,
             "retrieval_status": retrieval_status,
-            "total_tips": total_tips,
-            "collection_rate": collection_rate,
+            "total_tips": sum(t.get('amount', 0) for t in tips_today),
+            "collection_rate": round((tips_paid / tip_links_sent * 100), 1) if tip_links_sent > 0 else 0,
         },
-        "leaderboard": valets_data,
-        "hourly_volume": hourly_data,
+        "leaderboard": leaderboard,
+        "hourly_volume": hourly_volume,
         "waitlist": waitlist,
         "financial": {
-            "pending_tips_count": pending_tips,
+            "pending_tips_count": len([t for t in tips_today if t.get('status') == 'pending']),
             "paid_tips_total": paid_tips_total,
-            "platform_fees": platform_fees,
-            "payout": payout_data,
+            "platform_fees": round(paid_tips_total * platform_fee_rate, 2),
+            "payout": [
+                {"valet_name": vd['name'], "tips_earned": vd['tips_earned'],
+                 "payout_amount": round(sum(t.get('amount', 0) for t in tips_today if t.get('valet_id') == vd['id'] and t.get('status') == 'paid') * (1 - platform_fee_rate), 2)}
+                for vd in leaderboard
+            ],
         }
     }
 

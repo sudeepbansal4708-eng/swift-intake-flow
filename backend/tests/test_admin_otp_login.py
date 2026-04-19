@@ -29,7 +29,7 @@ class TestSuperAdminPasswordLogin:
         """Test: Super Admin login with password works (superadmin@swiftvalet.com/superadmin123)"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"email": "superadmin@swiftvalet.com", "password": "superadmin123"},
+            json={"email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")},
             headers={"Content-Type": "application/json"}
         )
         
@@ -39,7 +39,7 @@ class TestSuperAdminPasswordLogin:
         assert "token" in data
         assert "user" in data
         assert data["user"]["role"] == "super_admin"
-        assert data["user"]["email"] == "superadmin@swiftvalet.com"
+        assert data["user"]["email"] == os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com")
         print(f"SUCCESS: Super Admin login works - role: {data['user']['role']}")
 
 
@@ -51,7 +51,7 @@ class TestCreateAdminWithPhone:
         """Get super admin token"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"email": "superadmin@swiftvalet.com", "password": "superadmin123"},
+            json={"email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")},
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 200, f"Super Admin login failed: {response.text}"
@@ -163,7 +163,7 @@ class TestAdminOTPLogin:
         """Get super admin token"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"email": "superadmin@swiftvalet.com", "password": "superadmin123"},
+            json={"email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")},
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 200
@@ -401,7 +401,7 @@ class TestSuperAdminPanelEndpoints:
         """Get super admin token"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"email": "superadmin@swiftvalet.com", "password": "superadmin123"},
+            json={"email": os.environ.get("TEST_ADMIN_EMAIL", "superadmin@swiftvalet.com"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "superadmin123")},
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 200
