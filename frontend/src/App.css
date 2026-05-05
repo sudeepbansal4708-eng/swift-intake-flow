@@ -237,6 +237,7 @@
 [data-testid="emergent-watermark"],
 div[style*="Made with"],
 a[href*="emergent.sh"],
+a[href*="emergentagent"],
 div[class*="watermark"],
 #emergent-watermark,
 .emergent-watermark {
@@ -244,5 +245,19 @@ div[class*="watermark"],
   visibility: hidden !important;
   opacity: 0 !important;
   height: 0 !important;
+  overflow: hidden !important;
   pointer-events: none !important;
+}
+
+/* Cover any fixed-bottom watermark injected outside React */
+body::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: #09090b;
+  z-index: 99998;
+  pointer-events: none;
 }
