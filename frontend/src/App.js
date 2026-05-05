@@ -38,6 +38,7 @@ function PrivateRoute({ children }) {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -45,7 +46,18 @@ function App() {
       setAuthToken(token);
       setIsAuthenticated(true);
     }
+    // Hide splash after 2 seconds
+    const timer = setTimeout(() => setShowSplash(false), 2000);
+    return () => clearTimeout(timer);
   }, []);
+
+  if (showSplash) {
+    return (
+      <div className="splash-screen" data-testid="splash-screen">
+        <img src="/splash.png" alt="Valet Guys" className="splash-image" />
+      </div>
+    );
+  }
 
   return (
     <div className="App">

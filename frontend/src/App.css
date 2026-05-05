@@ -3,6 +3,25 @@
   background: #09090B;
 }
 
+.splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #09090B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+}
+
+.splash-image {
+  max-width: 85%;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
 .mobile-container {
   max-width: 28rem;
   margin: 0 auto;
