@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [requestOnlineLoading, setRequestOnlineLoading] = useState(false);
   const [showNotifBanner, setShowNotifBanner] = useState(false);
   const navigate = useNavigate();
-  const { subscribe } = usePushNotifications();
+  const { subscribe, stopRinger } = usePushNotifications();
   const { isInstallable, promptInstall, dismiss: dismissInstall } = useInstallPrompt();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,6 +121,7 @@ export default function Dashboard() {
 
   const claimTicket = async (ticketId) => {
     try {
+      stopRinger();
       await axios.put(`${API}/tickets/${ticketId}/claim`);
       toast.success('Ticket claimed!');
       navigate(`/ticket/${ticketId}`);

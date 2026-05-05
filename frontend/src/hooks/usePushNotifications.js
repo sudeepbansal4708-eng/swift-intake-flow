@@ -14,35 +14,65 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-function playAlertSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = 'sine';
-    gain.gain.value = 0.3;
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    osc.stop(ctx.currentTime + 0.5);
-    setTimeout(() => {
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.frequency.value = 1100;
-      osc2.type = 'sine';
-      gain2.gain.value = 0.3;
-      osc2.start();
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc2.stop(ctx.currentTime + 0.5);
-    }, 200);
-  } catch (e) {
-    // Audio API not available
+// Continuous ringer that loops until stopped
+class CallRinger {
+  constructor() {
+    this.ctx = null;
+    this.intervalId = null;
+    this.isRinging = false;
+  }
+
+  start() {
+    if (this.isRinging) return;
+    this.isRinging = true;
+
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      return;
+    }
+
+    this._ring();
+    // Ring pattern: ring for 1s, pause 1s, repeat
+    this.intervalId = setInterval(() => {
+      if (this.isRinging) this._ring();
+    }, 2000);
+  }
+
+  _ring() {
+    if (!this.ctx || !this.isRinging) return;
+    const now = this.ctx.currentTime;
+
+    // Two-tone ring pattern (like a phone)
+    [0, 0.15, 0.3, 0.45, 0.6, 0.75].forEach((delay, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.frequency.value = i % 2 === 0 ? 900 : 1100;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.35, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.12);
+    });
+  }
+
+  stop() {
+    this.isRinging = false;
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.ctx) {
+      this.ctx.close().catch(() => {});
+      this.ctx = null;
+    }
   }
 }
+
+// Singleton ringer instance
+const ringer = new CallRinger();
 
 function showBrowserNotification(title, body, ticketId) {
   if (!('Notification' in window)) return;
@@ -51,20 +81,21 @@ function showBrowserNotification(title, body, ticketId) {
   try {
     const notif = new Notification(title, {
       body,
-      icon: '/favicon.ico',
+      icon: '/icon-192.png',
       tag: ticketId || 'valetguys',
       renotify: true,
       requireInteraction: true
     });
     notif.onclick = () => {
       window.focus();
+      ringer.stop();
       if (ticketId) {
         window.location.href = `/ticket/${ticketId}`;
       }
       notif.close();
     };
   } catch (e) {
-    // Fallback: some browsers don't support Notification constructor
+    console.warn('Browser notification failed:', e.message);
   }
 }
 
@@ -72,6 +103,7 @@ export function usePushNotifications() {
   const subscribedRef = useRef(false);
   const knownTicketIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
+  const ringingForTicketRef = useRef(null);
 
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) return false;
@@ -91,14 +123,13 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
 
-      // Get VAPID key from env or fetch from API
       let vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
       if (!vapidKey) {
         try {
           const res = await axios.get(`${API}/push/vapid-key`);
           vapidKey = res.data.public_key;
         } catch (e) {
-          // Could not get VAPID key
+          console.warn('Could not get VAPID key');
         }
       }
       if (!vapidKey) return;
@@ -117,19 +148,39 @@ export function usePushNotifications() {
 
       subscribedRef.current = true;
     } catch (err) {
-      // Non-critical: Web Push is optional, polling handles notifications
+      console.warn('Push subscription failed:', err.message);
     }
+  }, []);
+
+  const stopRinger = useCallback(() => {
+    ringer.stop();
+    ringingForTicketRef.current = null;
   }, []);
 
   const checkForNewTickets = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/tickets`);
-      const activeTickets = res.data.filter(t => ['open', 'claimed', 'en_route'].includes(t.status));
+      const activeTickets = res.data.filter(t => ['open', 'claimed', 'en_route', 'arrived'].includes(t.status));
 
       if (!initialLoadDoneRef.current) {
         res.data.forEach(t => knownTicketIdsRef.current.add(t.id));
         initialLoadDoneRef.current = true;
         return;
+      }
+
+      // Check if current user has an active claimed ticket
+      const user = JSON.parse(localStorage.getItem('user'));
+      const userId = user?.id;
+      const userHasActiveTicket = activeTickets.some(
+        t => t.claimed_by === userId && ['claimed', 'en_route', 'arrived'].includes(t.status)
+      );
+
+      // If the ticket we were ringing for is no longer open, stop ringing
+      if (ringingForTicketRef.current) {
+        const ringedTicket = activeTickets.find(t => t.id === ringingForTicketRef.current);
+        if (!ringedTicket || ringedTicket.status !== 'open') {
+          stopRinger();
+        }
       }
 
       for (const ticket of activeTickets) {
@@ -140,13 +191,20 @@ export function usePushNotifications() {
           const tagStr = tag ? ` (Tag #${tag})` : '';
 
           if (ticket.status === 'open') {
-            // Open ticket — offer Claim action
+            // Don't ring if user already has an active ticket
+            if (userHasActiveTicket) continue;
+
+            // Start continuous ringer
+            ringer.start();
+            ringingForTicketRef.current = ticket.id;
+
             toast.info(`New Retrieval: ${plate}${tagStr}`, {
               description: 'Tap Claim to pick up this car',
-              duration: 30000,
+              duration: Infinity,
               action: {
                 label: 'Claim',
                 onClick: async () => {
+                  stopRinger();
                   try {
                     await axios.put(`${API}/tickets/${ticket.id}/claim`);
                     window.location.href = `/ticket/${ticket.id}`;
@@ -154,8 +212,17 @@ export function usePushNotifications() {
                     toast.error(err.response?.data?.detail || 'Failed to claim');
                   }
                 }
+              },
+              onDismiss: () => {
+                stopRinger();
               }
             });
+
+            showBrowserNotification(
+              'New Retrieval — Tap to Claim',
+              `Car ${plate}${tagStr} — claim this ticket!`,
+              ticket.id
+            );
           } else {
             toast.info(`Retrieval Update: ${plate}${tagStr}`, {
               description: `Status: ${ticket.status.replace('_', ' ')}`,
@@ -166,20 +233,12 @@ export function usePushNotifications() {
               }
             });
           }
-
-          playAlertSound();
-
-          showBrowserNotification(
-            ticket.status === 'open' ? 'New Retrieval — Tap to Claim' : 'Retrieval Update',
-            `Car ${plate}${tagStr}${ticket.status === 'open' ? ' — claim this ticket!' : ''}`,
-            ticket.id
-          );
         }
       }
     } catch (err) {
-      // Non-critical: poll will retry
+      console.warn('Ticket poll failed:', err.message);
     }
-  }, []);
+  }, [stopRinger]);
 
   const subscribe = useCallback(async () => {
     const granted = await requestPermission();
@@ -195,8 +254,11 @@ export function usePushNotifications() {
 
     checkForNewTickets();
     const interval = setInterval(checkForNewTickets, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      ringer.stop();
+    };
   }, [checkForNewTickets]);
 
-  return { subscribe, requestPermission };
+  return { subscribe, requestPermission, stopRinger };
 }
