@@ -224,7 +224,7 @@ export default function Dashboard() {
   return (
     <div className="mobile-container">
       <div className="gradient-glow-overlay" />
-      <div className="content-wrapper p-4 space-y-6 pb-32">
+      <div className="content-wrapper p-4 space-y-6 pb-24">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
@@ -560,7 +560,7 @@ export default function Dashboard() {
 
       {/* Bottom Action Ribbon */}
       {(isAdmin || (user?.role === 'valet' && user?.is_online)) && (
-        <div className="fixed bottom-10 left-0 right-0 z-[9998] bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 py-3 flex gap-3" data-testid="bottom-ribbon">
+        <div className="fixed bottom-0 left-0 right-0 z-[99999] bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 py-3 flex gap-3" data-testid="bottom-ribbon">
           <button
             data-testid="ribbon-park-button"
             onClick={() => navigate('/intake')}
