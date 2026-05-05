@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [requestOnlineLoading, setRequestOnlineLoading] = useState(false);
   const [showNotifBanner, setShowNotifBanner] = useState(false);
   const navigate = useNavigate();
-  const { subscribe, stopRinger } = usePushNotifications();
+  const { subscribe, stopRinger } = usePushNotifications(() => fetchTickets());
   const { isInstallable, promptInstall, dismiss: dismissInstall } = useInstallPrompt();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -41,6 +41,21 @@ class CallRinger {
 
   _ring() {
     if (!this.ctx || !this.isRinging) return;
+
+    // Resume suspended AudioContext (mobile browsers suspend it without user gesture)
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+
+    // Create a fresh context if the previous one was closed
+    if (this.ctx.state === 'closed') {
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        return;
+      }
+    }
+
     const now = this.ctx.currentTime;
 
     // Two-tone ring pattern (like a phone)
@@ -51,7 +66,7 @@ class CallRinger {
       gain.connect(this.ctx.destination);
       osc.frequency.value = i % 2 === 0 ? 900 : 1100;
       osc.type = 'sine';
-      gain.gain.setValueAtTime(0.35, now + delay);
+      gain.gain.setValueAtTime(0.4, now + delay);
       gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
       osc.start(now + delay);
       osc.stop(now + delay + 0.12);
@@ -99,11 +114,13 @@ function showBrowserNotification(title, body, ticketId) {
   }
 }
 
-export function usePushNotifications() {
+export function usePushNotifications(onNewTicket) {
   const subscribedRef = useRef(false);
   const knownTicketIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
   const ringingForTicketRef = useRef(null);
+  const onNewTicketRef = useRef(onNewTicket);
+  onNewTicketRef.current = onNewTicket;
 
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) return false;
@@ -186,6 +203,10 @@ export function usePushNotifications() {
       for (const ticket of activeTickets) {
         if (!knownTicketIdsRef.current.has(ticket.id)) {
           knownTicketIdsRef.current.add(ticket.id);
+
+          // Notify Dashboard to refetch tickets immediately
+          if (onNewTicketRef.current) onNewTicketRef.current();
+
           const plate = ticket.vehicle?.license_plate || 'Unknown';
           const tag = ticket.vehicle?.tag_number;
           const tagStr = tag ? ` (Tag #${tag})` : '';
