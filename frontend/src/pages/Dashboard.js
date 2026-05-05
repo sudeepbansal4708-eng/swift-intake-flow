@@ -227,11 +227,14 @@ export default function Dashboard() {
       <div className="gradient-glow-overlay" />
       <div className="content-wrapper p-4 space-y-6 pb-24">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-              Dashboard
-            </h1>
-            <p className="text-sm text-zinc-400">Welcome, {user?.name}</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Valet Guys" className="w-10 h-10 object-contain" />
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-tight" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
+                Dashboard
+              </h1>
+              <p className="text-xs text-zinc-400">Welcome, {user?.name}</p>
+            </div>
           </div>
           <div className="flex gap-2">
             {isAdmin && (

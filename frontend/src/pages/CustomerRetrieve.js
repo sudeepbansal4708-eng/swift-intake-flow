@@ -249,7 +249,7 @@ export default function CustomerRetrieve() {
   return (
     <div className="retrieve-page" data-testid="retrieve-confirm-page">
       <div className="retrieve-card">
-        <div className="retrieve-brand">PARKARO</div>
+        <img src="/logo.png" alt="Valet Guys" style={{ width: 120, margin: '0 auto 8px', display: 'block' }} />
         <p style={{ color: "#71717a", fontSize: 12, letterSpacing: 2, marginBottom: 24 }}>
           {vehicle.client_name?.toUpperCase()}
         </p>

@@ -85,13 +85,7 @@ export default function Login({ setIsAuthenticated }) {
       <div className="gradient-glow-overlay" />
       <div className="mobile-container flex flex-col justify-center content-wrapper">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600/20 border border-blue-500/50 mb-4">
-            <Car className="w-8 h-8 text-blue-500" />
-          </div>
-          <h1 className="text-5xl font-bold uppercase tracking-tight text-white mb-2" style={{fontFamily: 'Barlow Condensed, sans-serif'}}>
-            Valet Guys
-          </h1>
-          <p className="text-zinc-400 text-sm">PREMIUM PARKING SERVICE</p>
+          <img src="/logo.png" alt="Valet Guys" className="w-48 mx-auto mb-4" />
         </div>
 
         {/* Role chooser */}
