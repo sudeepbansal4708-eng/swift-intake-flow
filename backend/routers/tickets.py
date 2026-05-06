@@ -225,31 +225,28 @@ async def extend_ticket_timer(ticket_id: str, current_user: dict = Depends(get_c
 
 @router.put("/tickets/{ticket_id}/claim")
 async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_user)):
-    ticket = await db.tickets.find_one({"id": ticket_id, "status": "open"}, {"_id": 0})
-    if not ticket:
-        raise HTTPException(status_code=400, detail="Ticket not available")
-
-    vehicle = await db.vehicles.find_one({"id": ticket.get("vehicle_id")}, {"_id": 0})
-    plate = vehicle.get("license_plate", "your car") if vehicle else "your car"
-
-    result = await db.tickets.update_one(
+    # Atomic claim: findOneAndUpdate ensures only one valet can claim
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.tickets.find_one_and_update(
         {"id": ticket_id, "status": "open"},
-        {
-            "$set": {
-                "status": "claimed",
-                "claimed_by": current_user['id'],
-                "claimed_at": datetime.now(timezone.utc).isoformat()
-            }
-        }
+        {"$set": {
+            "status": "claimed",
+            "claimed_by": current_user['id'],
+            "claimed_at": now
+        }},
+        return_document=False
     )
 
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Ticket already claimed")
+    if not result:
+        raise HTTPException(status_code=409, detail="Ticket already claimed by another valet")
+
+    vehicle = await db.vehicles.find_one({"id": result.get("vehicle_id")}, {"_id": 0})
+    plate = vehicle.get("license_plate", "your car") if vehicle else "your car"
 
     client_name = current_user.get('client_name', 'Valet Guys')
     message = f"Valet Guys: Valet {current_user['name']} is on the way to get your car {plate}!"
     await send_whatsapp_message(
-        ticket['customer_phone'], message,
+        result.get('customer_phone', ''), message,
         content_sid=WA_TEMPLATE_RETRIEVAL,
         content_variables={"1": plate, "2": current_user['name'], "3": client_name}
     )

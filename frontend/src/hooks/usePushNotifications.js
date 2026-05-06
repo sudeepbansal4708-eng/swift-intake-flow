@@ -14,11 +14,10 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-// Continuous ringer that loops until stopped
+// Continuous ringer using Audio element for mobile persistence
 class CallRinger {
   constructor() {
-    this.ctx = null;
-    this.intervalId = null;
+    this.audio = null;
     this.isRinging = false;
   }
 
@@ -26,62 +25,78 @@ class CallRinger {
     if (this.isRinging) return;
     this.isRinging = true;
 
-    try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) {
-      return;
+    // Generate a ringtone WAV as base64 data URL
+    // This approach works reliably on mobile browsers
+    if (!this.audio) {
+      this.audio = this._createRingtoneAudio();
     }
 
-    this._ring();
-    // Ring pattern: ring for 1s, pause 1s, repeat
-    this.intervalId = setInterval(() => {
-      if (this.isRinging) this._ring();
-    }, 2000);
+    this.audio.loop = true;
+    this.audio.volume = 1.0;
+
+    const playPromise = this.audio.play();
+    if (playPromise) {
+      playPromise.catch(() => {
+        // Autoplay blocked - try with user interaction fallback
+        console.warn('Ringer autoplay blocked - will ring on next interaction');
+      });
+    }
   }
 
-  _ring() {
-    if (!this.ctx || !this.isRinging) return;
+  _createRingtoneAudio() {
+    // Generate a simple ringtone using WAV format
+    const sampleRate = 8000;
+    const duration = 3; // 3 seconds of ring, then loops
+    const numSamples = sampleRate * duration;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
 
-    // Resume suspended AudioContext (mobile browsers suspend it without user gesture)
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
+    // WAV header
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
 
-    // Create a fresh context if the previous one was closed
-    if (this.ctx.state === 'closed') {
-      try {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      } catch (e) {
-        return;
+    // Generate ring tone: 0.8s ring, 0.4s silence, 0.8s ring, 1s silence
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      let sample = 0;
+
+      // Ring pattern within 3-second loop
+      if ((t >= 0 && t < 0.8) || (t >= 1.2 && t < 2.0)) {
+        // Two-tone ring (900Hz + 1100Hz)
+        const freq1 = 900;
+        const freq2 = 1100;
+        sample = Math.sin(2 * Math.PI * freq1 * t) * 0.3 +
+                 Math.sin(2 * Math.PI * freq2 * t) * 0.3;
       }
+
+      view.setInt16(44 + i * 2, sample * 32767, true);
     }
 
-    const now = this.ctx.currentTime;
-
-    // Two-tone ring pattern (like a phone)
-    [0, 0.15, 0.3, 0.45, 0.6, 0.75].forEach((delay, i) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.frequency.value = i % 2 === 0 ? 900 : 1100;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0.4, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
-      osc.start(now + delay);
-      osc.stop(now + delay + 0.12);
-    });
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    return audio;
   }
 
   stop() {
     this.isRinging = false;
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-    if (this.ctx) {
-      this.ctx.close().catch(() => {});
-      this.ctx = null;
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.currentTime = 0;
     }
   }
 }
@@ -230,7 +245,12 @@ export function usePushNotifications(onNewTicket) {
                     await axios.put(`${API}/tickets/${ticket.id}/claim`);
                     window.location.href = `/ticket/${ticket.id}`;
                   } catch (err) {
-                    toast.error(err.response?.data?.detail || 'Failed to claim');
+                    const msg = err.response?.data?.detail || 'Failed to claim';
+                    if (err.response?.status === 409) {
+                      toast.warning('Another valet already claimed this ticket');
+                    } else {
+                      toast.error(msg);
+                    }
                   }
                 }
               },

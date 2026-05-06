@@ -126,7 +126,12 @@ export default function Dashboard() {
       toast.success('Ticket claimed!');
       navigate(`/ticket/${ticketId}`);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to claim ticket');
+      if (error.response?.status === 409) {
+        toast.warning('Another valet already claimed this ticket');
+        fetchTickets();
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to claim ticket');
+      }
     }
   };
 
