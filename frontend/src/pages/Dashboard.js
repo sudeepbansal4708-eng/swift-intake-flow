@@ -9,6 +9,7 @@ import { Car, LogOut, Clock, MapPin, Phone, Award, Crown, Users, DollarSign, X, 
 import { toast } from 'sonner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import IncomingCall from '../components/IncomingCall';
 import SuperAdminPanel from './SuperAdminPanel';
 
 export default function Dashboard() {
@@ -28,7 +29,7 @@ export default function Dashboard() {
   const [requestOnlineLoading, setRequestOnlineLoading] = useState(false);
   const [showNotifBanner, setShowNotifBanner] = useState(false);
   const navigate = useNavigate();
-  const { subscribe, stopRinger } = usePushNotifications(() => fetchTickets());
+  const { subscribe, stopRinger, incomingTicket, handleAnswer, handleDecline } = usePushNotifications(() => fetchTickets());
   const { isInstallable, promptInstall, dismiss: dismissInstall } = useInstallPrompt();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,6 +229,14 @@ export default function Dashboard() {
   const isAdmin = user?.role === 'admin';
 
   return (
+    <>
+    {incomingTicket && (
+      <IncomingCall
+        ticket={incomingTicket}
+        onAnswer={handleAnswer}
+        onDecline={handleDecline}
+      />
+    )}
     <div className="mobile-container">
       <div className="gradient-glow-overlay" />
       <div className="content-wrapper p-4 space-y-6 pb-24">
@@ -794,5 +803,6 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+    </>
   );
 }

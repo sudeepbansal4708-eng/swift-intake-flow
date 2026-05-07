@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import axios from 'axios';
 import { API } from '../App';
 import { toast } from 'sonner';
@@ -25,8 +25,6 @@ class CallRinger {
     if (this.isRinging) return;
     this.isRinging = true;
 
-    // Generate a ringtone WAV as base64 data URL
-    // This approach works reliably on mobile browsers
     if (!this.audio) {
       this.audio = this._createRingtoneAudio();
     }
@@ -37,21 +35,30 @@ class CallRinger {
     const playPromise = this.audio.play();
     if (playPromise) {
       playPromise.catch(() => {
-        // Autoplay blocked - try with user interaction fallback
-        console.warn('Ringer autoplay blocked - will ring on next interaction');
+        console.warn('Ringer autoplay blocked');
       });
+    }
+
+    // Vibration pattern (if supported)
+    if ('vibrate' in navigator) {
+      this._vibrateLoop();
     }
   }
 
+  _vibrateLoop() {
+    if (!this.isRinging) return;
+    // Vibrate: 500ms on, 300ms off, 500ms on, 1700ms off (3s cycle)
+    navigator.vibrate([500, 300, 500, 1700]);
+    this._vibrateTimer = setTimeout(() => this._vibrateLoop(), 3000);
+  }
+
   _createRingtoneAudio() {
-    // Generate a simple ringtone using WAV format
     const sampleRate = 8000;
-    const duration = 3; // 3 seconds of ring, then loops
+    const duration = 3;
     const numSamples = sampleRate * duration;
     const buffer = new ArrayBuffer(44 + numSamples * 2);
     const view = new DataView(buffer);
 
-    // WAV header
     const writeString = (offset, str) => {
       for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
     };
@@ -69,14 +76,12 @@ class CallRinger {
     writeString(36, 'data');
     view.setUint32(40, numSamples * 2, true);
 
-    // Generate ring tone: 0.8s ring, 0.4s silence, 0.8s ring, 1s silence
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
       let sample = 0;
 
-      // Ring pattern within 3-second loop
+      // Ring pattern: 0.8s ring, 0.4s silence, 0.8s ring, 1s silence
       if ((t >= 0 && t < 0.8) || (t >= 1.2 && t < 2.0)) {
-        // Two-tone ring (900Hz + 1100Hz)
         const freq1 = 900;
         const freq2 = 1100;
         sample = Math.sin(2 * Math.PI * freq1 * t) * 0.3 +
@@ -88,8 +93,7 @@ class CallRinger {
 
     const blob = new Blob([buffer], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    return audio;
+    return new Audio(url);
   }
 
   stop() {
@@ -98,10 +102,16 @@ class CallRinger {
       this.audio.pause();
       this.audio.currentTime = 0;
     }
+    if (this._vibrateTimer) {
+      clearTimeout(this._vibrateTimer);
+      this._vibrateTimer = null;
+    }
+    if ('vibrate' in navigator) {
+      navigator.vibrate(0);
+    }
   }
 }
 
-// Singleton ringer instance
 const ringer = new CallRinger();
 
 function showBrowserNotification(title, body, ticketId) {
@@ -118,10 +128,6 @@ function showBrowserNotification(title, body, ticketId) {
     });
     notif.onclick = () => {
       window.focus();
-      ringer.stop();
-      if (ticketId) {
-        window.location.href = `/ticket/${ticketId}`;
-      }
       notif.close();
     };
   } catch (e) {
@@ -133,9 +139,11 @@ export function usePushNotifications(onNewTicket) {
   const subscribedRef = useRef(false);
   const knownTicketIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
-  const ringingForTicketRef = useRef(null);
   const onNewTicketRef = useRef(onNewTicket);
   onNewTicketRef.current = onNewTicket;
+
+  // State for the incoming call overlay
+  const [incomingTicket, setIncomingTicket] = useState(null);
 
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) return false;
@@ -186,8 +194,29 @@ export function usePushNotifications(onNewTicket) {
 
   const stopRinger = useCallback(() => {
     ringer.stop();
-    ringingForTicketRef.current = null;
+    setIncomingTicket(null);
   }, []);
+
+  const handleAnswer = useCallback(async () => {
+    if (!incomingTicket) return;
+    const ticketId = incomingTicket.id;
+    stopRinger();
+    try {
+      await axios.put(`${API}/tickets/${ticketId}/claim`);
+      window.location.href = `/ticket/${ticketId}`;
+    } catch (err) {
+      if (err.response?.status === 409) {
+        toast.warning('Another valet already claimed this ticket');
+      } else {
+        toast.error(err.response?.data?.detail || 'Failed to claim');
+      }
+      if (onNewTicketRef.current) onNewTicketRef.current();
+    }
+  }, [incomingTicket, stopRinger]);
+
+  const handleDecline = useCallback(() => {
+    stopRinger();
+  }, [stopRinger]);
 
   const checkForNewTickets = useCallback(async () => {
     try {
@@ -200,86 +229,49 @@ export function usePushNotifications(onNewTicket) {
         return;
       }
 
-      // Check if current user has an active claimed ticket
       const user = JSON.parse(localStorage.getItem('user'));
       const userId = user?.id;
       const userHasActiveTicket = activeTickets.some(
         t => t.claimed_by === userId && ['claimed', 'en_route', 'arrived'].includes(t.status)
       );
 
-      // If the ticket we were ringing for is no longer open, stop ringing
-      if (ringingForTicketRef.current) {
-        const ringedTicket = activeTickets.find(t => t.id === ringingForTicketRef.current);
-        if (!ringedTicket || ringedTicket.status !== 'open') {
-          stopRinger();
+      // If the ticket we're showing the call for is no longer open (claimed by someone else), dismiss
+      setIncomingTicket(prev => {
+        if (prev) {
+          const stillOpen = activeTickets.find(t => t.id === prev.id && t.status === 'open');
+          if (!stillOpen) {
+            ringer.stop();
+            return null;
+          }
         }
-      }
+        return prev;
+      });
 
       for (const ticket of activeTickets) {
         if (!knownTicketIdsRef.current.has(ticket.id)) {
           knownTicketIdsRef.current.add(ticket.id);
 
-          // Notify Dashboard to refetch tickets immediately
           if (onNewTicketRef.current) onNewTicketRef.current();
 
-          const plate = ticket.vehicle?.license_plate || 'Unknown';
-          const tag = ticket.vehicle?.tag_number;
-          const tagStr = tag ? ` (Tag #${tag})` : '';
-
           if (ticket.status === 'open') {
-            // Don't ring if user already has an active ticket
             if (userHasActiveTicket) continue;
 
-            // Start continuous ringer
+            // Show full-screen call UI + start ringer
             ringer.start();
-            ringingForTicketRef.current = ticket.id;
-
-            toast.info(`New Retrieval: ${plate}${tagStr}`, {
-              description: 'Tap Claim to pick up this car',
-              duration: Infinity,
-              action: {
-                label: 'Claim',
-                onClick: async () => {
-                  stopRinger();
-                  try {
-                    await axios.put(`${API}/tickets/${ticket.id}/claim`);
-                    window.location.href = `/ticket/${ticket.id}`;
-                  } catch (err) {
-                    const msg = err.response?.data?.detail || 'Failed to claim';
-                    if (err.response?.status === 409) {
-                      toast.warning('Another valet already claimed this ticket');
-                    } else {
-                      toast.error(msg);
-                    }
-                  }
-                }
-              },
-              onDismiss: () => {
-                stopRinger();
-              }
-            });
+            setIncomingTicket(ticket);
 
             showBrowserNotification(
-              'New Retrieval — Tap to Claim',
-              `Car ${plate}${tagStr} — claim this ticket!`,
+              'Retrieval Request',
+              `Car ${ticket.vehicle?.license_plate || 'Unknown'} — open the app to claim!`,
               ticket.id
             );
-          } else {
-            toast.info(`Retrieval Update: ${plate}${tagStr}`, {
-              description: `Status: ${ticket.status.replace('_', ' ')}`,
-              duration: 10000,
-              action: {
-                label: 'View',
-                onClick: () => { window.location.href = `/ticket/${ticket.id}`; }
-              }
-            });
           }
         }
       }
     } catch (err) {
       console.warn('Ticket poll failed:', err.message);
     }
-  }, [stopRinger]);
+  }, []);
 
   const subscribe = useCallback(async () => {
     const granted = await requestPermission();
@@ -301,5 +293,5 @@ export function usePushNotifications(onNewTicket) {
     };
   }, [checkForNewTickets]);
 
-  return { subscribe, requestPermission, stopRinger };
+  return { subscribe, requestPermission, stopRinger, incomingTicket, handleAnswer, handleDecline };
 }
