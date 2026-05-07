@@ -11,20 +11,34 @@ self.addEventListener('push', function(event) {
     // Failed to parse push data
   }
 
+  const isRetrieval = data.data?.type === 'retrieval';
+
   const options = {
     body: data.body,
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
-    vibrate: [200, 100, 200, 100, 200],
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon-192.png',
     data: data.data || {},
-    actions: data.data?.type === 'retrieval' ? [
-      { action: 'claim', title: 'Claim Ticket' },
-      { action: 'open', title: 'View' }
-    ] : [],
-    tag: data.data?.ticket_id || 'valetguys-notification',
+    tag: isRetrieval ? ('retrieval-' + (data.data?.ticket_id || 'new')) : 'valetguys-notification',
     renotify: true,
-    requireInteraction: true
+    requireInteraction: true,
+    silent: false,
+    actions: isRetrieval ? [
+      { action: 'claim', title: 'Claim' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ] : []
   };
+
+  // Persistent vibration pattern for retrieval requests
+  if (isRetrieval) {
+    // Long vibration pattern: ring-pause-ring-pause (repeating feel)
+    options.vibrate = [
+      500, 200, 500, 200, 500, 800,
+      500, 200, 500, 200, 500, 800,
+      500, 200, 500, 200, 500, 800,
+      500, 200, 500, 200, 500, 800,
+      500, 200, 500, 200, 500
+    ];
+  }
 
   event.waitUntil(
     self.registration.showNotification(data.title, options)
@@ -35,42 +49,29 @@ self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
   const ticketId = event.notification.data?.ticket_id;
-  let url = '/';
+  const action = event.action;
 
-  if (event.action === 'claim' && ticketId) {
-    // Claim the ticket via API, then navigate to it
-    url = `/ticket/${ticketId}`;
-    event.waitUntil(
-      fetch(`/api/tickets/${ticketId}/claim`, {
-        method: 'PUT',
-        headers: { 'Authorization': 'Bearer ' + event.notification.data?.token }
-      }).catch(() => {}).then(() => {
-        return clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-          for (let client of clientList) {
-            if (client.url.includes(self.location.origin) && 'focus' in client) {
-              client.navigate(url);
-              return client.focus();
-            }
-          }
-          return clients.openWindow(url);
-        });
-      })
-    );
+  // Dismiss action — just close
+  if (action === 'dismiss') {
     return;
   }
 
+  // Claim or tap — open the app
+  let url = '/';
   if (ticketId) {
-    url = `/ticket/${ticketId}`;
+    url = action === 'claim' ? '/ticket/' + ticketId + '?claim=1' : '/ticket/' + ticketId;
   }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      // Try to focus an existing window
       for (let client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.navigate(url);
           return client.focus();
         }
       }
+      // Open new window
       return clients.openWindow(url);
     })
   );
@@ -85,6 +86,5 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
-  // Network-first strategy — let the app work normally
   event.respondWith(fetch(event.request));
 });

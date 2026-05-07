@@ -117,8 +117,10 @@ async def send_push_notification(user_id: str, title: str, body: str, data: dict
         "title": title,
         "body": body,
         "data": data or {},
-        "icon": "/favicon.ico",
-        "badge": "/favicon.ico"
+        "icon": "/icon-192.png",
+        "badge": "/icon-192.png",
+        "requireInteraction": True,
+        "urgency": "high"
     })
 
     for sub in subscriptions:
@@ -127,7 +129,8 @@ async def send_push_notification(user_id: str, title: str, body: str, data: dict
                 subscription_info=sub["subscription"],
                 data=payload,
                 vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims={"sub": VAPID_CLAIMS_EMAIL}
+                vapid_claims={"sub": VAPID_CLAIMS_EMAIL},
+                headers={"Urgency": "high", "Topic": data.get("ticket_id", "valetguys") if data else "valetguys"}
             )
         except WebPushException as e:
             logger.warning(f"Push failed for user {user_id}: {e}")
@@ -153,10 +156,18 @@ async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
 
     plate = vehicle.get("license_plate", "Unknown")
     tag = vehicle.get("tag_number")
+    zone = vehicle.get("zone_label")
     tag_str = f" (Tag #{tag})" if tag else ""
-    title = "New Retrieval Request"
+    title = "Retrieval Request"
     body = f"Car {plate}{tag_str} is ready for pickup!"
-    data = {"type": "retrieval", "ticket_id": ticket_id, "vehicle_id": vehicle.get("id")}
+    data = {
+        "type": "retrieval",
+        "ticket_id": ticket_id,
+        "vehicle_id": vehicle.get("id"),
+        "plate": plate,
+        "tag": tag or "",
+        "zone": zone or "",
+    }
 
     team_members = await db.users.find(
         {"client_id": client_id, "is_active": True, "role": {"$in": ["valet", "admin"]}},

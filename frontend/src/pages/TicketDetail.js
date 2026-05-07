@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
 import { Button } from '../components/ui/button';
@@ -62,11 +62,29 @@ export default function TicketDetail() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [extendLoading, setExtendLoading] = useState(false);
   const timerExpiredRef = useRef(false);
+  const claimedFromPushRef = useRef(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     fetchTicket();
     const interval = setInterval(fetchTicket, 3000);
+
+    // Auto-claim if opened from push notification with ?claim=1
+    if (searchParams.get('claim') === '1' && !claimedFromPushRef.current) {
+      claimedFromPushRef.current = true;
+      axios.put(`${API}/tickets/${ticketId}/claim`).then(() => {
+        toast.success('Ticket claimed!');
+        fetchTicket();
+      }).catch(err => {
+        if (err.response?.status === 409) {
+          toast.warning('Another valet already claimed this ticket');
+        } else {
+          toast.error(err.response?.data?.detail || 'Failed to claim');
+        }
+      });
+    }
+
     return () => clearInterval(interval);
   }, [ticketId]);
 
