@@ -2,6 +2,7 @@
 import os
 import jwt
 import json
+import asyncio
 import logging
 import random
 from datetime import datetime, timezone, timedelta
@@ -141,7 +142,11 @@ async def send_push_notification(user_id: str, title: str, body: str, data: dict
 
 
 async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
-    """Send push notifications to all active valets and admin for a client when retrieval is requested."""
+    """Send multi-layer notifications to all active valets/admin when retrieval is requested.
+    Layer 1: Immediate web push
+    Layer 2: WhatsApp message to all online valets
+    Layer 3: Repeated push pulses (at +5s, +15s, +25s) — stops if ticket is claimed
+    """
     parked_by = vehicle.get("parked_by")
     if not parked_by:
         return
@@ -158,9 +163,16 @@ async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
     tag = vehicle.get("tag_number")
     zone = vehicle.get("zone_label")
     tag_str = f" (Tag #{tag})" if tag else ""
-    title = "Retrieval Request"
-    body = f"Car {plate}{tag_str} is ready for pickup!"
-    data = {
+    zone_str = f"\nLocation: {zone}" if zone else ""
+
+    # Get all team members
+    team_members = await db.users.find(
+        {"client_id": client_id, "is_active": True, "role": {"$in": ["valet", "admin"]}},
+        {"_id": 0, "id": 1, "phone_number": 1, "name": 1, "is_online": 1}
+    ).to_list(500)
+
+    # Layer 1: Immediate web push to all members
+    push_data = {
         "type": "retrieval",
         "ticket_id": ticket_id,
         "vehicle_id": vehicle.get("id"),
@@ -168,14 +180,72 @@ async def notify_team_of_retrieval(vehicle: dict, ticket_id: str):
         "tag": tag or "",
         "zone": zone or "",
     }
+    for member in team_members:
+        await send_push_notification(member["id"], "Retrieval Request", f"Car {plate}{tag_str} is ready for pickup!", push_data)
+
+    # Layer 2: WhatsApp message to all online valets
+    for member in team_members:
+        phone = member.get("phone_number")
+        if phone and member.get("is_online", False):
+            wa_msg = f"Valet Guys: New retrieval request!\nCar: {plate}{tag_str}{zone_str}\nOpen the app to claim this ticket."
+            await send_whatsapp_message(phone, wa_msg)
+
+    # Layer 3: Background pulse — repeated pushes at 5s, 15s, 25s
+    asyncio.ensure_future(_pulse_notifications(ticket_id, team_members, plate, tag_str, push_data))
+
+
+async def _pulse_notifications(ticket_id: str, team_members: list, plate: str, tag_str: str, push_data: dict):
+    """Send repeated push pulses until ticket is claimed or 30s elapsed."""
+    delays = [5, 10, 10]  # seconds between pulses: at +5s, +15s, +25s
+    for delay in delays:
+        await asyncio.sleep(delay)
+
+        # Check if ticket is still open
+        ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0, "status": 1})
+        if not ticket or ticket.get("status") != "open":
+            logger.info(f"Pulse stopped for ticket {ticket_id[:8]}... — status: {ticket.get('status') if ticket else 'deleted'}")
+            return
+
+        # Send another push to all members
+        for member in team_members:
+            await send_push_notification(
+                member["id"],
+                "Retrieval Waiting!",
+                f"Car {plate}{tag_str} still waiting — claim now!",
+                push_data
+            )
+
+    logger.info(f"Pulse complete for ticket {ticket_id[:8]}...")
+
+
+async def notify_team_of_claim(ticket_id: str, claimer_name: str, plate: str):
+    """Notify all team valets via WhatsApp that a ticket has been claimed."""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0, "vehicle_id": 1, "claimed_by": 1})
+    if not ticket:
+        return
+
+    vehicle = await db.vehicles.find_one({"id": ticket.get("vehicle_id")}, {"_id": 0, "parked_by": 1})
+    if not vehicle:
+        return
+
+    parker = await db.users.find_one({"id": vehicle.get("parked_by")}, {"_id": 0, "client_id": 1})
+    if not parker:
+        return
+
+    client_id = parker.get("client_id")
+    if not client_id:
+        return
 
     team_members = await db.users.find(
-        {"client_id": client_id, "is_active": True, "role": {"$in": ["valet", "admin"]}},
-        {"_id": 0, "id": 1}
+        {"client_id": client_id, "is_active": True, "role": {"$in": ["valet", "admin"]}, "id": {"$ne": ticket.get("claimed_by")}},
+        {"_id": 0, "phone_number": 1, "is_online": 1}
     ).to_list(500)
 
     for member in team_members:
-        await send_push_notification(member["id"], title, body, data)
+        phone = member.get("phone_number")
+        if phone and member.get("is_online", False):
+            msg = f"Valet Guys: {claimer_name} has claimed the retrieval for car {plate}."
+            await send_whatsapp_message(phone, msg)
 
 
 async def get_client_valet_fee(client_id: str) -> float:

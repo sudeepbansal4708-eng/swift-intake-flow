@@ -8,6 +8,7 @@ from config import db, WA_TEMPLATE_RETRIEVAL, WA_TEMPLATE_ARRIVED, WA_TEMPLATE_R
 from models import Ticket, RetrieveRequest
 from utils import (
     get_current_user, send_whatsapp_message, notify_team_of_retrieval,
+    notify_team_of_claim,
     send_push_notification, get_client_valet_fee, get_client_wait_timer,
     send_fee_payment_request,
 )
@@ -116,7 +117,9 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
     doc['claimed_at'] = now.isoformat()
 
     await db.tickets.insert_one(doc)
-    await notify_team_of_retrieval(vehicle, ticket_obj.id)
+
+    # Notify team that this valet has taken this retrieval (skip retrieval alert since already claimed)
+    await notify_team_of_claim(ticket_obj.id, current_user.get('name', 'A valet'), vehicle['license_plate'])
 
     client_name = current_user.get('client_name', 'Valet Guys')
     message = f"Valet Guys: Valet {current_user['name']} is on the way to get your car {vehicle['license_plate']}!"
@@ -250,6 +253,9 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
         content_sid=WA_TEMPLATE_RETRIEVAL,
         content_variables={"1": plate, "2": current_user['name'], "3": client_name}
     )
+
+    # Notify other valets that this ticket was claimed
+    await notify_team_of_claim(ticket_id, current_user.get('name', 'A valet'), plate)
 
     return {"message": "Ticket claimed"}
 
