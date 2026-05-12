@@ -126,6 +126,7 @@ async def update_admin_profile(
     name: Optional[str] = None,
     client_name: Optional[str] = None,
     valet_fee: Optional[float] = None,
+    fee_enabled: Optional[bool] = None,
     wait_timer: Optional[int] = None,
     current_user: dict = Depends(get_current_user)
 ):
@@ -139,6 +140,8 @@ async def update_admin_profile(
         update_data['client_name'] = client_name
     if valet_fee is not None:
         update_data['valet_fee'] = valet_fee
+    if fee_enabled is not None:
+        update_data['fee_enabled'] = fee_enabled
     if wait_timer is not None:
         update_data['wait_timer'] = max(1, min(wait_timer, 30))
 

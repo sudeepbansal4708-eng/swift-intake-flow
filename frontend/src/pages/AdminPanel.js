@@ -22,7 +22,7 @@ export default function AdminPanel() {
   const [selectedValet, setSelectedValet] = useState(null);
   const [licenseData, setLicenseData] = useState({ number: '', photo: null, preview: null });
   const [formData, setFormData] = useState({ name: '', phone_number: '+91', driver_license_number: '' });
-  const [profileData, setProfileData] = useState({ name: '', client_name: '', profile_photo: null, valet_fee: 0, wait_timer: 5 });
+  const [profileData, setProfileData] = useState({ name: '', client_name: '', profile_photo: null, valet_fee: 0, fee_enabled: false, wait_timer: 5 });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(true);
@@ -48,6 +48,7 @@ export default function AdminPanel() {
         client_name: res.data.client_name || '',
         profile_photo: res.data.profile_photo || null,
         valet_fee: res.data.valet_fee || 0,
+        fee_enabled: res.data.fee_enabled || false,
         wait_timer: res.data.wait_timer || 5
       });
     } catch (error) {
@@ -159,6 +160,7 @@ export default function AdminPanel() {
       if (profileData.name.trim()) params.append('name', profileData.name.trim());
       if (profileData.client_name.trim()) params.append('client_name', profileData.client_name.trim());
       params.append('valet_fee', profileData.valet_fee || 0);
+      params.append('fee_enabled', profileData.fee_enabled);
       params.append('wait_timer', profileData.wait_timer || 5);
       await axios.put(`${API}/admin/profile?${params.toString()}`);
       toast.success('Profile updated successfully!');
@@ -298,18 +300,34 @@ export default function AdminPanel() {
                     <p className="text-xs text-zinc-500 mt-1">This name appears in WhatsApp messages sent to customers.</p>
                   </div>
                   <div>
-                    <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Valet Parking Fee (Rs.)</Label>
-                    <Input
-                      data-testid="admin-valet-fee"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={profileData.valet_fee}
-                      onChange={(e) => setProfileData({ ...profileData, valet_fee: parseFloat(e.target.value) || 0 })}
-                      className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
-                      placeholder="0"
-                    />
-                    <p className="text-xs text-zinc-500 mt-1">Set to 0 for free valet. Customers will be asked to pay before retrieval if fee is more than Rs.1.</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Valet Parking Fee</Label>
+                      <button
+                        data-testid="admin-fee-toggle"
+                        type="button"
+                        onClick={() => setProfileData({ ...profileData, fee_enabled: !profileData.fee_enabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${profileData.fee_enabled ? 'bg-emerald-600' : 'bg-zinc-700'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${profileData.fee_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    {profileData.fee_enabled ? (
+                      <>
+                        <Input
+                          data-testid="admin-valet-fee"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={profileData.valet_fee}
+                          onChange={(e) => setProfileData({ ...profileData, valet_fee: parseFloat(e.target.value) || 0 })}
+                          className="h-11 bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 text-white"
+                          placeholder="100"
+                        />
+                        <p className="text-xs text-emerald-400 mt-1">Fee is ON. Customers must pay Rs.{profileData.valet_fee || 0} via Razorpay before retrieval.</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-zinc-500">Fee is OFF. Customers can retrieve for free.</p>
+                    )}
                   </div>
                   <div>
                     <Label className="text-xs font-medium text-zinc-400 mb-1 block uppercase tracking-wide">Customer Wait Timer (Minutes)</Label>

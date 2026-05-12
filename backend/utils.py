@@ -249,14 +249,18 @@ async def notify_team_of_claim(ticket_id: str, claimer_name: str, plate: str):
 
 
 async def get_client_valet_fee(client_id: str) -> float:
-    """Get the valet fee for a client. Returns 0 if not set."""
+    """Get the valet fee for a client. Returns 0 if fee is not enabled or not set."""
     if not client_id:
         return 0
     admin = await db.users.find_one(
         {"client_id": client_id, "role": "admin", "is_active": True},
-        {"_id": 0, "valet_fee": 1}
+        {"_id": 0, "valet_fee": 1, "fee_enabled": 1}
     )
-    return admin.get("valet_fee", 0) if admin else 0
+    if not admin:
+        return 0
+    if not admin.get("fee_enabled", False):
+        return 0
+    return admin.get("valet_fee", 0)
 
 
 async def get_client_wait_timer(client_id: str) -> int:
@@ -271,11 +275,43 @@ async def get_client_wait_timer(client_id: str) -> int:
 
 
 async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
-    """Send payment request for valet fee before retrieval."""
+    """Send Razorpay payment link for valet fee before retrieval."""
+    from routers.payments import create_payment_link
+
     fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
-    message = f"Valet Guys ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment to proceed with vehicle retrieval."
-    await send_whatsapp_message(
-        phone, message,
-        content_sid=WA_TEMPLATE_FEE,
-        content_variables={"1": client_name, "2": fee_str}
+
+    # Create Razorpay payment link
+    result = await create_payment_link(
+        amount_inr=fee,
+        description=f"Valet Parking Fee - {client_name}",
+        customer_phone=phone,
+        reference_id=f"fee-{vehicle_id[:30]}",
+        notes={"type": "valet_fee", "vehicle_id": vehicle_id, "client_name": client_name}
     )
+
+    if result and result.get("short_url"):
+        # Store payment record
+        from datetime import datetime, timezone
+        await db.payments.insert_one({
+            "link_id": result["link_id"],
+            "type": "valet_fee",
+            "vehicle_id": vehicle_id,
+            "customer_phone": phone,
+            "amount": fee,
+            "status": "created",
+            "short_url": result["short_url"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        message = f"Valet Guys ({client_name}): Your valet parking fee is {fee_str}. Pay here to get your car: {result['short_url']}"
+        await send_whatsapp_message(phone, message,
+            content_sid=WA_TEMPLATE_FEE,
+            content_variables={"1": client_name, "2": fee_str}
+        )
+    else:
+        # Fallback to plain text if Razorpay fails
+        message = f"Valet Guys ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment to proceed with vehicle retrieval."
+        await send_whatsapp_message(phone, message,
+            content_sid=WA_TEMPLATE_FEE,
+            content_variables={"1": client_name, "2": fee_str}
+        )

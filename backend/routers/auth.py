@@ -66,6 +66,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "profile_photo": current_user.get('profile_photo'),
         "is_online": current_user.get('is_online', False),
         "valet_fee": current_user.get('valet_fee', 0),
+        "fee_enabled": current_user.get('fee_enabled', False),
         "wait_timer": current_user.get('wait_timer', 5),
     }
 
