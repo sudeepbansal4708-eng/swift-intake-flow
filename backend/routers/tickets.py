@@ -327,6 +327,32 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             content_variables={"1": client_name_msg}
         )
 
+        # Send tip payment link to customer
+        from routers.payments import create_payment_link
+        claimed_by = ticket.get('claimed_by') or current_user['id']
+        tip_result = await create_payment_link(
+            amount_inr=100,
+            description=f"Tip for your valet - {client_name_msg}",
+            customer_phone=ticket['customer_phone'],
+            reference_id=f"tip-{ticket['vehicle_id'][:31]}",
+            notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": current_user.get('name', 'your valet')}
+        )
+        if tip_result:
+            tip_msg = f"Valet Guys: Enjoyed our service? Tip your valet here: {tip_result['short_url']}"
+            await send_whatsapp_message(ticket['customer_phone'], tip_msg)
+
+            await db.payments.insert_one({
+                "link_id": tip_result["link_id"],
+                "type": "tip",
+                "vehicle_id": ticket['vehicle_id'],
+                "valet_id": claimed_by,
+                "customer_phone": ticket['customer_phone'],
+                "amount": 100,
+                "status": "created",
+                "short_url": tip_result["short_url"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
 
     return {"message": "Status updated"}

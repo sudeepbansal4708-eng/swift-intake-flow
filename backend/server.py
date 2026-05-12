@@ -9,7 +9,7 @@ from config import db, client, pwd_context
 from utils import get_password_hash
 
 # Import all routers
-from routers import auth, vehicles, tickets, admin, super_admin, public
+from routers import auth, vehicles, tickets, admin, super_admin, public, payments
 
 # Create the main app
 app = FastAPI(title="Valet Guys API")
@@ -23,6 +23,7 @@ api_router.include_router(tickets.router)
 api_router.include_router(admin.router)
 api_router.include_router(super_admin.router)
 api_router.include_router(public.router)
+api_router.include_router(payments.router)
 app.include_router(api_router)
 
 # CORS
