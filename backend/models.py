@@ -116,8 +116,8 @@ class Tip(BaseModel):
     ticket_id: str
     valet_id: str
     amount: float
-    razorpay_order_id: Optional[str] = None
-    razorpay_payment_id: Optional[str] = None
+    razorpay_order_id: Optional[str] = None  # legacy, unused
+    razorpay_payment_id: Optional[str] = None  # legacy, unused
     status: str = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     paid_at: Optional[datetime] = None

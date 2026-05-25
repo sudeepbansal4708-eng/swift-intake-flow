@@ -1,11 +1,14 @@
-"""Payment routes: Razorpay payment links for valet fees and tips."""
+"""Payment routes: Cashfree payment links for valet fees and tips."""
 import logging
-import hmac
-import hashlib
+import uuid
+import httpx
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
 
-from config import db, razorpay_client, RAZORPAY_KEY_SECRET
+from config import (
+    db, CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET,
+    CASHFREE_BASE_URL, CASHFREE_API_VERSION,
+)
 from utils import get_current_user, send_whatsapp_message
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -13,48 +16,63 @@ logger = logging.getLogger(__name__)
 
 
 async def create_payment_link(amount_inr: float, description: str, customer_phone: str, customer_name: str = "Customer", reference_id: str = "", notes: dict = None):
-    """Create a Razorpay Payment Link and return the short URL."""
-    if not razorpay_client:
-        logger.warning("Razorpay not configured")
+    """Create a Cashfree Payment Link and return the short URL."""
+    if not CASHFREE_CLIENT_ID or not CASHFREE_CLIENT_SECRET:
+        logger.warning("Cashfree not configured")
         return None
 
     try:
-        amount_paise = int(amount_inr * 100)
+        link_id = reference_id or f"vg-{uuid.uuid4().hex[:12]}"
 
         payload = {
-            "amount": amount_paise,
-            "currency": "INR",
-            "description": description,
-            "customer": {
-                "contact": customer_phone,
-                "name": customer_name,
+            "link_id": link_id,
+            "link_amount": amount_inr,
+            "link_currency": "INR",
+            "link_purpose": description,
+            "customer_details": {
+                "customer_phone": customer_phone.replace("+", ""),
+                "customer_name": customer_name,
             },
-            "notify": {
-                "sms": False,
-                "email": False,
-                "whatsapp": False,
+            "link_notify": {
+                "send_sms": False,
+                "send_email": False,
             },
-            "callback_url": "",
-            "callback_method": "get",
+            "link_meta": notes or {},
         }
 
-        if reference_id:
-            payload["reference_id"] = reference_id[:40]
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-version": CASHFREE_API_VERSION,
+            "x-client-id": CASHFREE_CLIENT_ID,
+            "x-client-secret": CASHFREE_CLIENT_SECRET,
+        }
 
-        if notes:
-            payload["notes"] = notes
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{CASHFREE_BASE_URL}/links",
+                json=payload,
+                headers=headers,
+                timeout=15.0,
+            )
 
-        link = razorpay_client.payment_link.create(payload)
-        logger.info(f"Payment link created: {link.get('id')} for Rs.{amount_inr}, phone={customer_phone}")
+        if resp.status_code >= 400:
+            logger.error(f"Cashfree error {resp.status_code}: {resp.text}")
+            return None
+
+        data = resp.json()
+        short_url = data.get("link_url", "")
+        cf_link_id = data.get("link_id", link_id)
+
+        logger.info(f"Cashfree payment link created: {cf_link_id} for Rs.{amount_inr}, url={short_url}")
 
         return {
-            "link_id": link.get("id"),
-            "short_url": link.get("short_url"),
+            "link_id": cf_link_id,
+            "short_url": short_url,
             "amount": amount_inr,
-            "status": link.get("status"),
+            "status": data.get("link_status", "created"),
         }
     except Exception as e:
-        logger.error(f"Razorpay payment link error: {e}")
+        logger.error(f"Cashfree payment link error: {e}")
         return None
 
 
@@ -65,7 +83,6 @@ async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # Get client's valet fee
     client_id = current_user.get("client_id")
     admin = await db.users.find_one(
         {"client_id": client_id, "role": "admin", "is_active": True},
@@ -81,14 +98,13 @@ async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(
         amount_inr=valet_fee,
         description=f"Valet Parking Fee - {client_name}",
         customer_phone=vehicle.get("phone_number", ""),
-        reference_id=f"fee-{vehicle_id[:30]}",
+        reference_id=f"fee-{uuid.uuid4().hex[:12]}",
         notes={"type": "valet_fee", "vehicle_id": vehicle_id, "client_name": client_name}
     )
 
     if not result:
         raise HTTPException(status_code=500, detail="Failed to create payment link")
 
-    # Store payment record
     await db.payments.insert_one({
         "link_id": result["link_id"],
         "type": "valet_fee",
@@ -101,8 +117,7 @@ async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    # Send payment link via WhatsApp
-    msg = f"Valet Guys ({client_name}): Your valet parking fee is Rs.{valet_fee:.0f}. Pay here: {result['short_url']}"
+    msg = f"Valet Guys ({client_name}): Your valet parking fee is Rs.{valet_fee:.0f}. Pay here to get your car: {result['short_url']}"
     await send_whatsapp_message(vehicle.get("phone_number", ""), msg)
 
     return {"message": "Payment link sent", "short_url": result["short_url"], "amount": valet_fee}
@@ -119,22 +134,20 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
     valet_name = valet.get("name", "your valet") if valet else "your valet"
     client_name = valet.get("client_name", "Valet Guys") if valet else "Valet Guys"
 
-    # If no fixed amount, create a link with a suggested amount (can be customized)
-    tip_amount = amount if amount > 0 else 100  # Default Rs.100 tip suggestion
+    tip_amount = amount if amount > 0 else 100
 
     result = await create_payment_link(
         amount_inr=tip_amount,
         description=f"Tip for {valet_name} - {client_name}",
         customer_phone=vehicle.get("phone_number", ""),
         customer_name="Customer",
-        reference_id=f"tip-{vehicle_id[:31]}",
+        reference_id=f"tip-{uuid.uuid4().hex[:12]}",
         notes={"type": "tip", "vehicle_id": vehicle_id, "valet_id": valet_id, "valet_name": valet_name}
     )
 
     if not result:
         raise HTTPException(status_code=500, detail="Failed to create payment link")
 
-    # Store payment record
     await db.payments.insert_one({
         "link_id": result["link_id"],
         "type": "tip",
@@ -151,24 +164,9 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
 
 
 @router.post("/webhook")
-async def razorpay_webhook(request: Request):
-    """Handle Razorpay payment webhooks."""
+async def cashfree_webhook(request: Request):
+    """Handle Cashfree payment link webhooks."""
     body = await request.body()
-    signature = request.headers.get("X-Razorpay-Signature", "")
-
-    # Verify signature if webhook secret is configured
-    webhook_secret = RAZORPAY_KEY_SECRET
-    if webhook_secret and signature:
-        try:
-            expected = hmac.new(
-                webhook_secret.encode(),
-                body,
-                hashlib.sha256
-            ).hexdigest()
-            if not hmac.compare_digest(expected, signature):
-                logger.warning("Razorpay webhook signature mismatch")
-        except Exception as e:
-            logger.warning(f"Webhook verification error: {e}")
 
     import json
     try:
@@ -176,54 +174,58 @@ async def razorpay_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid payload")
 
-    event = payload.get("event", "")
-    logger.info(f"Razorpay webhook: {event}")
+    event_type = payload.get("type", "")
+    logger.info(f"Cashfree webhook: {event_type}")
 
-    if event == "payment_link.paid":
-        link_entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
-        link_id = link_entity.get("id")
-        amount_paise = link_entity.get("amount", 0)
-        amount_inr = amount_paise / 100
-        notes = link_entity.get("notes", {})
+    if event_type == "PAYMENT_LINK_EVENT":
+        link_data = payload.get("data", {}).get("link_payment", {}) or payload.get("data", {})
+        link_id = link_data.get("link_id", "")
+        link_status = link_data.get("link_status", "")
+        amount_paid = link_data.get("link_amount_paid", 0)
+        link_meta = link_data.get("link_meta", {}) or {}
 
-        # Update payment record
-        await db.payments.update_one(
-            {"link_id": link_id},
-            {"$set": {
-                "status": "paid",
-                "paid_at": datetime.now(timezone.utc).isoformat(),
-                "amount_paid": amount_inr,
-            }}
-        )
-
-        payment_type = notes.get("type", "unknown")
-        vehicle_id = notes.get("vehicle_id", "")
-
-        if payment_type == "valet_fee" and vehicle_id:
-            # Mark ticket as paid — move from pending_payment to open
-            ticket = await db.tickets.find_one(
-                {"vehicle_id": vehicle_id, "status": "pending_payment"},
-                {"_id": 0}
+        if link_id:
+            await db.payments.update_one(
+                {"link_id": link_id},
+                {"$set": {
+                    "status": "paid" if link_status == "PAID" else link_status.lower(),
+                    "paid_at": datetime.now(timezone.utc).isoformat(),
+                    "amount_paid": float(amount_paid) if amount_paid else 0,
+                }}
             )
-            if ticket:
-                await db.tickets.update_one(
-                    {"id": ticket["id"]},
-                    {"$set": {"status": "open", "fee_paid": True, "fee_paid_at": datetime.now(timezone.utc).isoformat()}}
-                )
-                logger.info(f"Valet fee paid for vehicle {vehicle_id}, ticket {ticket['id']} moved to open")
 
-        elif payment_type == "tip":
-            valet_id = notes.get("valet_id", "")
-            if valet_id:
-                await db.tips.insert_one({
-                    "valet_id": valet_id,
-                    "vehicle_id": vehicle_id,
-                    "amount": amount_inr,
-                    "status": "paid",
-                    "link_id": link_id,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                })
-                logger.info(f"Tip of Rs.{amount_inr} recorded for valet {valet_id}")
+            payment = await db.payments.find_one({"link_id": link_id}, {"_id": 0})
+            payment_type = payment.get("type", "") if payment else link_meta.get("type", "")
+
+            if link_status == "PAID":
+                if payment_type == "valet_fee":
+                    vehicle_id = payment.get("vehicle_id", "") if payment else link_meta.get("vehicle_id", "")
+                    if vehicle_id:
+                        ticket = await db.tickets.find_one(
+                            {"vehicle_id": vehicle_id, "status": "pending_payment"},
+                            {"_id": 0}
+                        )
+                        if ticket:
+                            await db.tickets.update_one(
+                                {"id": ticket["id"]},
+                                {"$set": {"status": "open", "fee_paid": True, "fee_paid_at": datetime.now(timezone.utc).isoformat()}}
+                            )
+                            logger.info(f"Valet fee paid for vehicle {vehicle_id}, ticket moved to open")
+
+                elif payment_type == "tip":
+                    valet_id = payment.get("valet_id", "") if payment else link_meta.get("valet_id", "")
+                    vehicle_id = payment.get("vehicle_id", "") if payment else link_meta.get("vehicle_id", "")
+                    tip_amount = float(amount_paid) if amount_paid else (payment.get("amount", 0) if payment else 0)
+                    if valet_id:
+                        await db.tips.insert_one({
+                            "valet_id": valet_id,
+                            "vehicle_id": vehicle_id,
+                            "amount": tip_amount,
+                            "status": "paid",
+                            "link_id": link_id,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                        logger.info(f"Tip of Rs.{tip_amount} recorded for valet {valet_id}")
 
     return {"status": "ok"}
 

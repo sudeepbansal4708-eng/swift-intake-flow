@@ -275,23 +275,21 @@ async def get_client_wait_timer(client_id: str) -> int:
 
 
 async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
-    """Send Razorpay payment link for valet fee before retrieval."""
+    """Send Cashfree payment link for valet fee before retrieval."""
+    import uuid
     from routers.payments import create_payment_link
 
     fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
 
-    # Create Razorpay payment link
     result = await create_payment_link(
         amount_inr=fee,
         description=f"Valet Parking Fee - {client_name}",
         customer_phone=phone,
-        reference_id=f"fee-{vehicle_id[:30]}",
+        reference_id=f"fee-{uuid.uuid4().hex[:12]}",
         notes={"type": "valet_fee", "vehicle_id": vehicle_id, "client_name": client_name}
     )
 
     if result and result.get("short_url"):
-        # Store payment record
-        from datetime import datetime, timezone
         await db.payments.insert_one({
             "link_id": result["link_id"],
             "type": "valet_fee",
@@ -309,7 +307,6 @@ async def send_fee_payment_request(phone: str, client_name: str, fee: float, veh
             content_variables={"1": client_name, "2": fee_str}
         )
     else:
-        # Fallback to plain text if Razorpay fails
         message = f"Valet Guys ({client_name}): Your valet parking fee is {fee_str}. Please complete your payment to proceed with vehicle retrieval."
         await send_whatsapp_message(phone, message,
             content_sid=WA_TEMPLATE_FEE,
