@@ -24,7 +24,7 @@ ALGORITHM = "HS256"
 CASHFREE_CLIENT_ID = os.environ.get('CASHFREE_CLIENT_ID', '')
 CASHFREE_CLIENT_SECRET = os.environ.get('CASHFREE_CLIENT_SECRET', '')
 CASHFREE_BASE_URL = os.environ.get('CASHFREE_BASE_URL', 'https://api.cashfree.com/pg')
-CASHFREE_API_VERSION = os.environ.get('CASHFREE_API_VERSION', '2023-08-01')
+CASHFREE_API_VERSION = os.environ.get('CASHFREE_API_VERSION', '2025-01-01')
 
 # Twilio
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
