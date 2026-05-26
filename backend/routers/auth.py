@@ -77,11 +77,9 @@ async def request_otp(data: OTPRequest):
     if not phone.startswith('+'):
         phone = '+' + phone
 
-    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}}, {"_id": 0})
+    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}, "is_active": True}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this phone number")
-    if not user.get('is_active', True):
-        raise HTTPException(status_code=401, detail="Account is inactive")
 
     otp = str(random.randint(100000, 999999))
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
@@ -119,7 +117,7 @@ async def verify_otp(data: OTPVerify):
 
     await db.otps.delete_many({"phone_number": phone})
 
-    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}}, {"_id": 0})
+    user = await db.users.find_one({"phone_number": phone, "role": {"$in": ["valet", "admin"]}, "is_active": True}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="Account not found")
 
