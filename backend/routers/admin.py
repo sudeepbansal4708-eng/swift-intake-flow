@@ -83,12 +83,9 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
 
     tip_url = tip_result['short_url'] if tip_result else os.environ.get('BACKEND_URL', 'https://thevaletguys.in')
 
+    # Send combined thank-you + tip as plain text (within 24hr conversation window)
     message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
-    await send_whatsapp_message(
-        vehicle['phone_number'], message,
-        content_sid=WA_TEMPLATE_TIP,
-        content_variables={"1": client_name_msg, "2": valet_name_msg, "3": tip_url}
-    )
+    await send_whatsapp_message(vehicle['phone_number'], message)
 
     if tip_result:
         await db.payments.insert_one({
