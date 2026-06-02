@@ -1,9 +1,11 @@
 """Payment routes: Cashfree Orders API for valet fees and tips."""
+import os
 import logging
 import uuid
 import httpx
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import RedirectResponse
 
 from config import (
     db, CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET,
@@ -64,13 +66,14 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
 
         data = resp.json()
         session_id = data.get("payment_session_id", "")
-        checkout_url = f"{CASHFREE_CHECKOUT_URL}{session_id}"
+        backend_url = os.environ.get('BACKEND_URL', 'https://thevaletguys.in')
+        short_url = f"{backend_url}/api/payments/pay/{order_id}"
 
-        logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, url={checkout_url}")
+        logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, url={short_url}")
 
         return {
             "link_id": order_id,
-            "short_url": checkout_url,
+            "short_url": short_url,
             "amount": amount_inr,
             "status": data.get("order_status", "ACTIVE"),
             "cf_order_id": data.get("cf_order_id", ""),
@@ -113,6 +116,7 @@ async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(
     await db.payments.insert_one({
         "link_id": result["link_id"],
         "cf_order_id": result.get("cf_order_id", ""),
+        "session_id": result.get("session_id", ""),
         "type": "valet_fee",
         "vehicle_id": vehicle_id,
         "customer_phone": vehicle.get("phone_number"),
@@ -157,6 +161,7 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
     await db.payments.insert_one({
         "link_id": result["link_id"],
         "cf_order_id": result.get("cf_order_id", ""),
+        "session_id": result.get("session_id", ""),
         "type": "tip",
         "vehicle_id": vehicle_id,
         "valet_id": valet_id,
@@ -252,3 +257,14 @@ async def get_payment_status(order_id: str, current_user: dict = Depends(get_cur
         "created_at": payment.get("created_at"),
         "paid_at": payment.get("paid_at"),
     }
+
+
+@router.get("/pay/{order_id}")
+async def redirect_to_payment(order_id: str):
+    """Short URL redirect to Cashfree checkout page. No auth required."""
+    payment = await db.payments.find_one({"link_id": order_id}, {"_id": 0, "session_id": 1})
+    if not payment or not payment.get("session_id"):
+        raise HTTPException(status_code=404, detail="Payment not found or expired")
+
+    checkout_url = f"{CASHFREE_CHECKOUT_URL}{payment['session_id']}"
+    return RedirectResponse(url=checkout_url, status_code=302)
