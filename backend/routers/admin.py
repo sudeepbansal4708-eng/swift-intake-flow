@@ -68,12 +68,39 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
     )
 
     client_name_msg = current_user.get('client_name', 'Valet Guys')
-    message = f"Thank you for parking with the Valet Guys at {client_name_msg}!\n\nDrive Safe!"
+    valet_name_msg = current_user.get('name', 'your valet')
+
+    # Create tip link and send combined thank-you + tip message
+    from routers.payments import create_payment_link
+    tip_result = await create_payment_link(
+        amount_inr=100,
+        description=f"Tip for {valet_name_msg} - {client_name_msg}",
+        customer_phone=vehicle['phone_number'],
+        reference_id=f"tip-{vehicle_id[:31]}",
+        notes={"type": "tip", "vehicle_id": vehicle_id, "valet_id": current_user['id'], "valet_name": valet_name_msg}
+    )
+
+    tip_url = tip_result['short_url'] if tip_result else "https://thevaletguys.in"
+
+    message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
     await send_whatsapp_message(
         vehicle['phone_number'], message,
         content_sid=WA_TEMPLATE_TIP,
-        content_variables={"1": client_name_msg}
+        content_variables={"1": client_name_msg, "2": valet_name_msg, "3": tip_url}
     )
+
+    if tip_result:
+        await db.payments.insert_one({
+            "link_id": tip_result["link_id"],
+            "type": "tip",
+            "vehicle_id": vehicle_id,
+            "valet_id": current_user['id'],
+            "customer_phone": vehicle['phone_number'],
+            "amount": 100,
+            "status": "created",
+            "short_url": tip_result["short_url"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
 

@@ -320,27 +320,29 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         )
 
         client_name_msg = current_user.get('client_name', 'Valet Guys')
-        message = f"Thank you for parking with the Valet Guys at {client_name_msg}!\n\nDrive Safe!"
-        await send_whatsapp_message(
-            ticket['customer_phone'], message,
-            content_sid=WA_TEMPLATE_TIP,
-            content_variables={"1": client_name_msg}
-        )
+        valet_name_msg = current_user.get('name', 'your valet')
 
-        # Send tip payment link to customer
+        # Create tip payment link first, then send combined thank-you + tip message
         from routers.payments import create_payment_link
         claimed_by = ticket.get('claimed_by') or current_user['id']
         tip_result = await create_payment_link(
             amount_inr=100,
-            description=f"Tip for your valet - {client_name_msg}",
+            description=f"Tip for {valet_name_msg} - {client_name_msg}",
             customer_phone=ticket['customer_phone'],
             reference_id=f"tip-{ticket['vehicle_id'][:31]}",
-            notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": current_user.get('name', 'your valet')}
+            notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": valet_name_msg}
         )
-        if tip_result:
-            tip_msg = f"Valet Guys: Enjoyed our service? Tip your valet here: {tip_result['short_url']}"
-            await send_whatsapp_message(ticket['customer_phone'], tip_msg)
 
+        tip_url = tip_result['short_url'] if tip_result else "https://thevaletguys.in"
+
+        message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
+        await send_whatsapp_message(
+            ticket['customer_phone'], message,
+            content_sid=WA_TEMPLATE_TIP,
+            content_variables={"1": client_name_msg, "2": valet_name_msg, "3": tip_url}
+        )
+
+        if tip_result:
             await db.payments.insert_one({
                 "link_id": tip_result["link_id"],
                 "type": "tip",
