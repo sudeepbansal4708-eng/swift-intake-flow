@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("")
-async def create_vehicle(request: Request, vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
+async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'valet' and not current_user.get('is_online'):
         raise HTTPException(status_code=403, detail="You must be marked online by your manager to park vehicles")
 
