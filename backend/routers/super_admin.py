@@ -184,3 +184,25 @@ async def get_client_report(client_id: str, current_user: dict = Depends(get_cur
         "cars_parked_today": cars_parked_today,
         "tips_today": tips_today,
     }
+
+
+
+@router.post("/wipe-data")
+async def wipe_data(confirm: str, current_user: dict = Depends(get_current_user)):
+    """Danger zone: wipe all operational data, keep only super admin accounts.
+    Requires query param ?confirm=WIPE-ALL-DATA"""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    if confirm != "WIPE-ALL-DATA":
+        raise HTTPException(status_code=400, detail="Confirmation phrase required: confirm=WIPE-ALL-DATA")
+
+    result = {}
+    for c in ["payments", "tickets", "vehicles", "online_requests", "otps", "push_subscriptions"]:
+        res = await db[c].delete_many({})
+        result[c] = res.deleted_count
+
+    res = await db.users.delete_many({"role": {"$ne": "super_admin"}})
+    result["users_non_super_admin"] = res.deleted_count
+
+    logger.warning(f"DB WIPED by {current_user['email']}: {result}")
+    return {"message": "Database wiped. Only super admin accounts remain.", "deleted": result}
