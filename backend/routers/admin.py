@@ -1,4 +1,5 @@
 """Admin routes: valets management, profile, dashboard, reporting, checkout, tips, cleanup."""
+import os
 import io
 import csv
 import base64
@@ -80,7 +81,7 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         notes={"type": "tip", "vehicle_id": vehicle_id, "valet_id": current_user['id'], "valet_name": valet_name_msg}
     )
 
-    tip_url = tip_result['short_url'] if tip_result else "https://thevaletguys.in"
+    tip_url = tip_result['short_url'] if tip_result else os.environ.get('BACKEND_URL', 'https://thevaletguys.in')
 
     message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
     await send_whatsapp_message(

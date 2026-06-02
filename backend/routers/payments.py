@@ -40,7 +40,7 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
                 "customer_name": customer_name,
             },
             "order_meta": {
-                "return_url": f"https://thevaletguys.in/payment/success?order_id={order_id}",
+                "return_url": f"{os.environ.get('BACKEND_URL', 'https://thevaletguys.in')}/payment/success?order_id={order_id}",
             },
             "order_tags": notes or {},
         }
