@@ -1,9 +1,8 @@
 """Vehicle routes: create, list, upload photo, update location, lookup."""
-import os
 import base64
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 
 from config import db, WA_TEMPLATE_PARKING
 from models import Vehicle, VehicleCreate
@@ -13,8 +12,15 @@ router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 logger = logging.getLogger(__name__)
 
 
+def get_base_url(request: Request) -> str:
+    """Derive the public base URL from the incoming request."""
+    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    return f"{forwarded_proto}://{forwarded_host}"
+
+
 @router.post("")
-async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
+async def create_vehicle(request: Request, vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'valet' and not current_user.get('is_online'):
         raise HTTPException(status_code=403, detail="You must be marked online by your manager to park vehicles")
 
@@ -31,8 +37,8 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
     valet_name = current_user.get('name', 'our valet driver')
 
-    backend_url = os.environ.get('BACKEND_URL', '')
-    retrieve_url = f"{backend_url}/retrieve/{vehicle_obj.id}"
+    base_url = get_base_url(request)
+    retrieve_url = f"{base_url}/retrieve/{vehicle_obj.id}"
 
     # Build Google Maps link from GPS if available, otherwise use retrieve URL
     gps_lat = vehicle_obj.gps_latitude

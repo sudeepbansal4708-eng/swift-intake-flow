@@ -6,7 +6,7 @@ import base64
 import logging
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 
 from config import db, WA_TEMPLATE_TIP
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/vehicles/{vehicle_id}/checkout")
-async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(get_current_user)):
+async def admin_checkout_vehicle(request: Request, vehicle_id: str, current_user: dict = Depends(get_current_user)):
     """Admin or valet manual checkout: mark vehicle as handed over, send WhatsApp thank-you."""
     if current_user['role'] not in ['admin', 'super_admin', 'valet']:
         raise HTTPException(status_code=403, detail="Access required")
@@ -72,8 +72,10 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
     valet_name_msg = current_user.get('name', 'your valet')
 
     # Create tip link and send combined thank-you + tip message
-    from routers.payments import create_payment_link
+    from routers.payments import create_payment_link, get_base_url
+    base_url = get_base_url(request)
     tip_result = await create_payment_link(
+        base_url=base_url,
         amount_inr=100,
         description=f"Tip for {valet_name_msg} - {client_name_msg}",
         customer_phone=vehicle['phone_number'],
@@ -81,7 +83,7 @@ async def admin_checkout_vehicle(vehicle_id: str, current_user: dict = Depends(g
         notes={"type": "tip", "vehicle_id": vehicle_id, "valet_id": current_user['id'], "valet_name": valet_name_msg}
     )
 
-    tip_url = tip_result['short_url'] if tip_result else os.environ.get('BACKEND_URL', 'https://thevaletguys.in')
+    tip_url = tip_result['short_url'] if tip_result else base_url
 
     # Send combined thank-you + tip as plain text (within 24hr conversation window)
     message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"

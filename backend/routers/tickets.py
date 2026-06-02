@@ -3,7 +3,7 @@ import os
 import logging
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from config import db, WA_TEMPLATE_RETRIEVAL, WA_TEMPLATE_ARRIVED, WA_TEMPLATE_RETURNED, WA_TEMPLATE_TIP
 from models import Ticket, RetrieveRequest
@@ -40,7 +40,7 @@ async def create_ticket(vehicle_id: str, current_user: dict = Depends(get_curren
 
 
 @router.post("/tickets/retrieve")
-async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(get_current_user)):
+async def retrieve_vehicle(request: Request, data: RetrieveRequest, current_user: dict = Depends(get_current_user)):
     """Valet-initiated retrieval: lookup vehicle by customer phone and auto-assign ticket."""
     if current_user['role'] == 'valet' and not current_user.get('is_online'):
         raise HTTPException(status_code=403, detail="You must be marked online by your manager to retrieve vehicles")
@@ -82,7 +82,8 @@ async def retrieve_vehicle(data: RetrieveRequest, current_user: dict = Depends(g
         doc['valet_fee'] = valet_fee
         await db.tickets.insert_one(doc)
 
-        await send_fee_payment_request(phone, client_name, valet_fee, vehicle['id'])
+        from routers.payments import get_base_url
+        await send_fee_payment_request(phone, client_name, valet_fee, vehicle['id'], base_url=get_base_url(request))
 
         ticket_response = {
             "id": ticket_obj.id,
@@ -262,7 +263,7 @@ async def claim_ticket(ticket_id: str, current_user: dict = Depends(get_current_
 
 
 @router.put("/tickets/{ticket_id}/status")
-async def update_ticket_status(ticket_id: str, status: str, current_user: dict = Depends(get_current_user)):
+async def update_ticket_status(request: Request, ticket_id: str, status: str, current_user: dict = Depends(get_current_user)):
     ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -324,9 +325,11 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
         valet_name_msg = current_user.get('name', 'your valet')
 
         # Create tip payment link first, then send combined thank-you + tip message
-        from routers.payments import create_payment_link
+        from routers.payments import create_payment_link, get_base_url
+        base_url = get_base_url(request)
         claimed_by = ticket.get('claimed_by') or current_user['id']
         tip_result = await create_payment_link(
+            base_url=base_url,
             amount_inr=100,
             description=f"Tip for {valet_name_msg} - {client_name_msg}",
             customer_phone=ticket['customer_phone'],
@@ -334,7 +337,7 @@ async def update_ticket_status(ticket_id: str, status: str, current_user: dict =
             notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": valet_name_msg}
         )
 
-        tip_url = tip_result['short_url'] if tip_result else os.environ.get('BACKEND_URL', 'https://thevaletguys.in')
+        tip_url = tip_result['short_url'] if tip_result else base_url
 
         # Send combined thank-you + tip as plain text (within 24hr conversation window)
         message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
