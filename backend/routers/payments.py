@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 
 from config import (
     db, CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET,
-    CASHFREE_BASE_URL, CASHFREE_API_VERSION,
+    CASHFREE_BASE_URL, CASHFREE_API_VERSION, APP_BASE_URL,
 )
 from utils import get_current_user, send_whatsapp_message
 
@@ -19,16 +19,23 @@ CASHFREE_CHECKOUT_URL = "https://payments.cashfree.com/order/#"
 
 
 def get_base_url(request: Request) -> str:
-    """Derive the public base URL from the incoming request."""
+    """Return the canonical app base URL (from frontend .env via config)."""
+    if APP_BASE_URL:
+        return APP_BASE_URL.rstrip("/")
     forwarded_proto = request.headers.get("x-forwarded-proto", "https")
     forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
     return f"{forwarded_proto}://{forwarded_host}"
 
 
-async def create_payment_link(base_url: str, amount_inr: float, description: str, customer_phone: str, customer_name: str = "Customer", reference_id: str = "", notes: dict = None):
+async def create_payment_link(amount_inr: float, description: str, customer_phone: str, customer_name: str = "Customer", reference_id: str = "", notes: dict = None, base_url: str = None):
     """Create a Cashfree Order and return the checkout URL."""
     if not CASHFREE_CLIENT_ID or not CASHFREE_CLIENT_SECRET:
         logger.warning("Cashfree not configured")
+        return None
+
+    public_base = (base_url or APP_BASE_URL or "").rstrip("/")
+    if not public_base:
+        logger.error("No APP_BASE_URL configured; cannot generate payment short URL")
         return None
 
     try:
@@ -46,7 +53,7 @@ async def create_payment_link(base_url: str, amount_inr: float, description: str
                 "customer_name": customer_name,
             },
             "order_meta": {
-                "return_url": f"{APP_BASE_URL}/payment/success?order_id={order_id}",
+                "return_url": f"{public_base}/payment/success?order_id={order_id}",
             },
             "order_tags": notes or {},
         }
@@ -72,7 +79,7 @@ async def create_payment_link(base_url: str, amount_inr: float, description: str
 
         data = resp.json()
         session_id = data.get("payment_session_id", "")
-        short_url = f"{APP_BASE_URL}/api/payments/pay/{order_id}"
+        short_url = f"{public_base}/api/payments/pay/{order_id}"
 
         logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, url={short_url}")
 

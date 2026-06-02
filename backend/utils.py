@@ -274,18 +274,14 @@ async def get_client_wait_timer(client_id: str) -> int:
     return admin.get("wait_timer", 5) if admin else 5
 
 
-async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str, base_url: str = ""):
+async def send_fee_payment_request(phone: str, client_name: str, fee: float, vehicle_id: str):
     """Send Cashfree payment link for valet fee before retrieval."""
     import uuid
     from routers.payments import create_payment_link
 
     fee_str = f"Rs.{fee:.0f}" if fee == int(fee) else f"Rs.{fee:.2f}"
 
-    if not base_url:
-        base_url = os.environ.get('BACKEND_URL', '')
-
     result = await create_payment_link(
-        base_url=base_url,
         amount_inr=fee,
         description=f"Valet Parking Fee - {client_name}",
         customer_phone=phone,

@@ -82,8 +82,7 @@ async def retrieve_vehicle(request: Request, data: RetrieveRequest, current_user
         doc['valet_fee'] = valet_fee
         await db.tickets.insert_one(doc)
 
-        from routers.payments import get_base_url
-        await send_fee_payment_request(phone, client_name, valet_fee, vehicle['id'], base_url=get_base_url(request))
+        await send_fee_payment_request(phone, client_name, valet_fee, vehicle['id'])
 
         ticket_response = {
             "id": ticket_obj.id,
@@ -325,11 +324,9 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
         valet_name_msg = current_user.get('name', 'your valet')
 
         # Create tip payment link first, then send combined thank-you + tip message
-        from routers.payments import create_payment_link, get_base_url
-        base_url = get_base_url(request)
+        from routers.payments import create_payment_link
         claimed_by = ticket.get('claimed_by') or current_user['id']
         tip_result = await create_payment_link(
-            base_url=base_url,
             amount_inr=100,
             description=f"Tip for {valet_name_msg} - {client_name_msg}",
             customer_phone=ticket['customer_phone'],
@@ -337,10 +334,13 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
             notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": valet_name_msg}
         )
 
-        tip_url = tip_result['short_url'] if tip_result else base_url
+        tip_url = tip_result['short_url'] if tip_result else None
 
         # Send combined thank-you + tip as plain text (within 24hr conversation window)
-        message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
+        if tip_url:
+            message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
+        else:
+            message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience.\n\nDrive Safe!"
         await send_whatsapp_message(ticket['customer_phone'], message)
 
         if tip_result:
