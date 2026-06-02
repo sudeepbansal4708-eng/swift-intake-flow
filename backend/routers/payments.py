@@ -46,7 +46,7 @@ async def create_payment_link(base_url: str, amount_inr: float, description: str
                 "customer_name": customer_name,
             },
             "order_meta": {
-                "return_url": f"{base_url}/payment/success?order_id={order_id}",
+                "return_url": f"{APP_BASE_URL}/payment/success?order_id={order_id}",
             },
             "order_tags": notes or {},
         }
@@ -72,7 +72,7 @@ async def create_payment_link(base_url: str, amount_inr: float, description: str
 
         data = resp.json()
         session_id = data.get("payment_session_id", "")
-        short_url = f"{base_url}/api/payments/pay/{order_id}"
+        short_url = f"{APP_BASE_URL}/api/payments/pay/{order_id}"
 
         logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, url={short_url}")
 
@@ -90,7 +90,7 @@ async def create_payment_link(base_url: str, amount_inr: float, description: str
 
 
 @router.post("/create-fee-link")
-async def create_fee_payment_link(request: Request, vehicle_id: str, current_user: dict = Depends(get_current_user)):
+async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(get_current_user)):
     """Create a payment order for valet parking fee and send via WhatsApp."""
     vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
     if not vehicle:
@@ -107,9 +107,7 @@ async def create_fee_payment_link(request: Request, vehicle_id: str, current_use
     if valet_fee <= 0:
         raise HTTPException(status_code=400, detail="No valet fee configured for this client")
 
-    base_url = get_base_url(request)
     result = await create_payment_link(
-        base_url=base_url,
         amount_inr=valet_fee,
         description=f"Valet Parking Fee - {client_name}",
         customer_phone=vehicle.get("phone_number", ""),
@@ -141,7 +139,7 @@ async def create_fee_payment_link(request: Request, vehicle_id: str, current_use
 
 
 @router.post("/create-tip-link")
-async def create_tip_payment_link(request: Request, vehicle_id: str, valet_id: str, amount: float = 0, current_user: dict = Depends(get_current_user)):
+async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float = 0, current_user: dict = Depends(get_current_user)):
     """Create a tip payment order for the customer to tip the valet."""
     vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
     if not vehicle:
@@ -153,9 +151,7 @@ async def create_tip_payment_link(request: Request, vehicle_id: str, valet_id: s
 
     tip_amount = amount if amount > 0 else 100
 
-    base_url = get_base_url(request)
     result = await create_payment_link(
-        base_url=base_url,
         amount_inr=tip_amount,
         description=f"Tip for {valet_name} - {client_name}",
         customer_phone=vehicle.get("phone_number", ""),

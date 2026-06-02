@@ -9,6 +9,14 @@ from fastapi.security import HTTPBearer
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Also read frontend .env for REACT_APP_BACKEND_URL (Emergent updates this for production)
+_frontend_env = ROOT_DIR.parent / 'frontend' / '.env'
+if _frontend_env.exists():
+    load_dotenv(_frontend_env, override=False)
+
+# App Base URL — prefer REACT_APP_BACKEND_URL (auto-set by Emergent in production)
+APP_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', os.environ.get('BACKEND_URL', ''))
+
 # MongoDB
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
