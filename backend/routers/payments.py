@@ -187,6 +187,55 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
     return {"message": "Tip link created", "short_url": result["short_url"], "amount": tip_amount}
 
 
+@router.get("/quick-tip/{token}/{amount}", response_class=HTMLResponse)
+async def quick_tip_redirect(token: str, amount: int):
+    """Customer tapped a tip-amount link. Look up the intent by token,
+    create a Cashfree order for the chosen amount, and serve the JS-SDK
+    payment page. No auth required."""
+    intent = await db.tip_intents.find_one({"token": token}, {"_id": 0})
+    if not intent:
+        raise HTTPException(status_code=404, detail="Tip link not found or expired")
+
+    if amount not in (25, 50, 100, 200, 500):
+        raise HTTPException(status_code=400, detail="Invalid tip amount")
+
+    # Check if a payment already exists for this token + amount (idempotent)
+    existing = await db.payments.find_one(
+        {"tip_token": token, "amount": amount, "status": {"$in": ["created", "paid"]}},
+        {"_id": 0}
+    )
+    if existing and existing.get("link_id"):
+        return await redirect_to_payment(existing["link_id"])
+
+    result = await create_payment_link(
+        amount_inr=amount,
+        description=f"Tip for {intent['valet_name']} - {intent['client_name']}",
+        customer_phone=intent['customer_phone'],
+        customer_name="Customer",
+        reference_id=f"tip-{token}-{amount}",
+        notes={"type": "tip", "vehicle_id": intent['vehicle_id'], "valet_id": intent['valet_id']},
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create tip payment")
+
+    await db.payments.insert_one({
+        "link_id": result["link_id"],
+        "session_id": result.get("session_id", ""),
+        "cf_order_id": result.get("cf_order_id", ""),
+        "type": "tip",
+        "vehicle_id": intent['vehicle_id'],
+        "valet_id": intent['valet_id'],
+        "customer_phone": intent['customer_phone'],
+        "amount": amount,
+        "status": "created",
+        "short_url": result["short_url"],
+        "tip_token": token,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return await redirect_to_payment(result["link_id"])
+
+
 @router.post("/webhook")
 async def cashfree_webhook(request: Request):
     """Handle Cashfree Orders API payment webhooks."""

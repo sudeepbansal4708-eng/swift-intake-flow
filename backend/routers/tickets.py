@@ -323,40 +323,35 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
         client_name_msg = current_user.get('client_name', 'Valet Guys')
         valet_name_msg = current_user.get('name', 'your valet')
 
-        # Create tip payment link first, then send combined thank-you + tip message
-        from routers.payments import create_payment_link
+        # Create a tip intent with a short token; customer picks amount via 3 links in WhatsApp.
+        import secrets
+        from config import get_app_base_url
         claimed_by = ticket.get('claimed_by') or current_user['id']
-        tip_result = await create_payment_link(
-            amount_inr=100,
-            description=f"Tip for {valet_name_msg} - {client_name_msg}",
-            customer_phone=ticket['customer_phone'],
-            reference_id=f"tip-{ticket['vehicle_id'][:31]}",
-            notes={"type": "tip", "vehicle_id": ticket['vehicle_id'], "valet_id": claimed_by, "valet_name": valet_name_msg}
+        token = secrets.token_urlsafe(6).replace('-', 'a').replace('_', 'b')[:8]
+        await db.tip_intents.insert_one({
+            "token": token,
+            "vehicle_id": ticket['vehicle_id'],
+            "valet_id": claimed_by,
+            "valet_name": valet_name_msg,
+            "client_name": client_name_msg,
+            "customer_phone": ticket['customer_phone'],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        base = (await get_app_base_url()).rstrip("/")
+        link_25 = f"{base}/api/payments/quick-tip/{token}/25"
+        link_50 = f"{base}/api/payments/quick-tip/{token}/50"
+        link_100 = f"{base}/api/payments/quick-tip/{token}/100"
+
+        message = (
+            f"Thank you for parking with the Valet Guys at {client_name_msg}! "
+            f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"
+            f"Rs.25  →  {link_25}\n"
+            f"Rs.50  →  {link_50}\n"
+            f"Rs.100  →  {link_100}\n\n"
+            f"Drive Safe!"
         )
-
-        tip_url = tip_result['short_url'] if tip_result else None
-
-        # Send combined thank-you + tip as plain text (within 24hr conversation window)
-        if tip_url:
-            message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience. Tip your valet {valet_name_msg} here: {tip_url}\n\nDrive Safe!"
-        else:
-            message = f"Thank you for parking with the Valet Guys at {client_name_msg}! We hope you had a great experience.\n\nDrive Safe!"
         await send_whatsapp_message(ticket['customer_phone'], message)
-
-        if tip_result:
-            await db.payments.insert_one({
-                "link_id": tip_result["link_id"],
-                "session_id": tip_result.get("session_id", ""),
-                "cf_order_id": tip_result.get("cf_order_id", ""),
-                "type": "tip",
-                "vehicle_id": ticket['vehicle_id'],
-                "valet_id": claimed_by,
-                "customer_phone": ticket['customer_phone'],
-                "amount": 100,
-                "status": "created",
-                "short_url": tip_result["short_url"],
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
 
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
 

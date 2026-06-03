@@ -101,6 +101,7 @@ VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@valetguy
 
 # WhatsApp template SIDs
 WA_TEMPLATE_PARKING = os.environ.get('WA_TEMPLATE_PARKING', '')
+WA_TEMPLATE_PARKING_NO_GPS = os.environ.get('WA_TEMPLATE_PARKING_NO_GPS', '')
 WA_TEMPLATE_ARRIVED = os.environ.get('WA_TEMPLATE_ARRIVED', '')
 WA_TEMPLATE_RETRIEVAL = os.environ.get('WA_TEMPLATE_RETRIEVAL', '')
 WA_TEMPLATE_RETURNED = os.environ.get('WA_TEMPLATE_RETURNED', '')

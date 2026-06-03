@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 
-from config import db, WA_TEMPLATE_PARKING
+from config import db, WA_TEMPLATE_PARKING, WA_TEMPLATE_PARKING_NO_GPS
 from models import Vehicle, VehicleCreate
 from utils import get_current_user, send_whatsapp_message
 
@@ -30,24 +30,26 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
     valet_name = current_user.get('name', 'our valet driver')
 
-    from config import get_app_base_url
-    retrieve_url = f"{await get_app_base_url()}/retrieve/{vehicle_obj.id}"
-
-    # Build Google Maps link from GPS if available, otherwise use retrieve URL
+    # Decide message variant based on whether GPS was captured
     gps_lat = vehicle_obj.gps_latitude
     gps_lng = vehicle_obj.gps_longitude
-    if gps_lat and gps_lng and gps_lat != 0:
+    has_gps = bool(gps_lat and gps_lng and gps_lat != 0)
+
+    if has_gps:
         maps_link = f"https://www.google.com/maps?q={gps_lat},{gps_lng}"
+        message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked at {maps_link} by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
+        sms_result = await send_whatsapp_message(
+            vehicle_obj.phone_number, message,
+            content_sid=WA_TEMPLATE_PARKING,
+            content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": maps_link, "4": valet_name}
+        )
     else:
-        maps_link = retrieve_url
-
-    message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked at {maps_link} by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
-
-    sms_result = await send_whatsapp_message(
-        vehicle_obj.phone_number, message,
-        content_sid=WA_TEMPLATE_PARKING,
-        content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": maps_link, "4": valet_name}
-    )
+        message = f"Thank you for parking with the Valet Guys at {client_name}. Your car {vehicle_obj.license_plate} has been parked by our valet driver {valet_name}.\nPlease reply RETR when you are ready to pick up your car."
+        sms_result = await send_whatsapp_message(
+            vehicle_obj.phone_number, message,
+            content_sid=WA_TEMPLATE_PARKING_NO_GPS or WA_TEMPLATE_PARKING,
+            content_variables={"1": client_name, "2": vehicle_obj.license_plate, "3": valet_name}
+        )
     logger.info(f"Message result for {vehicle_obj.phone_number}: {sms_result}")
 
     return {"vehicle": vehicle_obj.model_dump(), "message": "Vehicle parked successfully"}
