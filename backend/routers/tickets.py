@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Request
 
-from config import db, WA_TEMPLATE_RETRIEVAL, WA_TEMPLATE_ARRIVED, WA_TEMPLATE_RETURNED, WA_TEMPLATE_TIP
+from config import db, WA_TEMPLATE_RETRIEVAL, WA_TEMPLATE_ARRIVED, WA_TEMPLATE_RETURNED, WA_TEMPLATE_TIP, WA_TEMPLATE_CHECKOUT_TIP
 from models import Ticket, RetrieveRequest
 from utils import (
     get_current_user, send_whatsapp_message, notify_team_of_retrieval,
@@ -323,7 +323,7 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
         client_name_msg = current_user.get('client_name', 'Valet Guys')
         valet_name_msg = current_user.get('name', 'your valet')
 
-        # Create a tip intent with a short token; customer picks amount via 3 links in WhatsApp.
+        # Create a tip intent so we can resolve button taps from the customer
         import secrets
         from config import get_app_base_url
         claimed_by = ticket.get('claimed_by') or current_user['id']
@@ -338,20 +338,29 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
-        base = (await get_app_base_url()).rstrip("/")
-        link_25 = f"{base}/api/payments/quick-tip/{token}/25"
-        link_50 = f"{base}/api/payments/quick-tip/{token}/50"
-        link_100 = f"{base}/api/payments/quick-tip/{token}/100"
-
-        message = (
-            f"Thank you for parking with the Valet Guys at {client_name_msg}! "
-            f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"
-            f"Rs.25  →  {link_25}\n"
-            f"Rs.50  →  {link_50}\n"
-            f"Rs.100  →  {link_100}\n\n"
-            f"Drive Safe!"
-        )
-        await send_whatsapp_message(ticket['customer_phone'], message)
+        if WA_TEMPLATE_CHECKOUT_TIP:
+            # Send Twilio quick-reply template with Rs.25 / Rs.50 / Rs.100 buttons
+            await send_whatsapp_message(
+                ticket['customer_phone'],
+                f"Thank you for parking with the Valet Guys at {client_name_msg}! Tip your valet {valet_name_msg}.",
+                content_sid=WA_TEMPLATE_CHECKOUT_TIP,
+                content_variables={"1": client_name_msg, "2": valet_name_msg},
+            )
+        else:
+            # Fallback: plain text with 3 short links
+            base = (await get_app_base_url()).rstrip("/")
+            link_25 = f"{base}/api/payments/quick-tip/{token}/25"
+            link_50 = f"{base}/api/payments/quick-tip/{token}/50"
+            link_100 = f"{base}/api/payments/quick-tip/{token}/100"
+            message = (
+                f"Thank you for parking with the Valet Guys at {client_name_msg}! "
+                f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"
+                f"Rs.25  →  {link_25}\n"
+                f"Rs.50  →  {link_50}\n"
+                f"Rs.100  →  {link_100}\n\n"
+                f"Drive Safe!"
+            )
+            await send_whatsapp_message(ticket['customer_phone'], message)
 
     await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
 

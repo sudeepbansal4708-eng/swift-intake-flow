@@ -56,20 +56,71 @@ async def get_vapid_public_key():
 # ─── WhatsApp Webhook ───
 
 @router.post("/whatsapp/webhook")
-async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
+async def whatsapp_webhook(
+    From: str = Form(...),
+    Body: str = Form(""),
+    ButtonPayload: str = Form(""),
+    ButtonText: str = Form(""),
+):
     """Handle incoming SMS/WhatsApp messages from Twilio."""
     phone_number = From.replace('whatsapp:', '').strip()
     if not phone_number.startswith('+'):
         phone_number = '+' + phone_number
 
-    message = Body.strip()
+    message = (ButtonPayload or Body or ButtonText).strip()
     message_lower = message.lower()
 
-    logger.info(f"Received inbound message from {phone_number}: {message}")
+    logger.info(f"Inbound from {phone_number}: body={Body!r} payload={ButtonPayload!r} text={ButtonText!r}")
 
     reply_text = ""
 
-    if message_lower in ['retr', 'retrieve', 'get car', 'ready']:
+    # Detect tip button tap: payload like "tip_25" / "tip_50" / "tip_100"
+    tip_amount = None
+    for amt in (25, 50, 100, 200, 500):
+        if message_lower in (f"tip_{amt}", f"tip{amt}", f"rs.{amt}", f"rs {amt}", f"₹{amt}", str(amt)):
+            tip_amount = amt
+            break
+
+    if tip_amount:
+        # Find the most recent tip intent for this phone within last 24h
+        intent = await db.tip_intents.find_one(
+            {"customer_phone": phone_number},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+        if not intent:
+            reply_text = "Sorry, we couldn't find a recent checkout to tip for. Please contact the valet desk."
+        else:
+            from routers.payments import create_payment_link
+            from config import get_app_base_url
+            import uuid
+            result = await create_payment_link(
+                amount_inr=tip_amount,
+                description=f"Tip for {intent['valet_name']} - {intent['client_name']}",
+                customer_phone=phone_number,
+                customer_name="Customer",
+                reference_id=f"tip-{intent['token']}-{tip_amount}-{uuid.uuid4().hex[:4]}",
+                notes={"type": "tip", "vehicle_id": intent['vehicle_id'], "valet_id": intent['valet_id']},
+            )
+            if not result:
+                reply_text = "Sorry, we couldn't create your tip payment right now. Please try again."
+            else:
+                await db.payments.insert_one({
+                    "link_id": result["link_id"],
+                    "session_id": result.get("session_id", ""),
+                    "cf_order_id": result.get("cf_order_id", ""),
+                    "type": "tip",
+                    "vehicle_id": intent['vehicle_id'],
+                    "valet_id": intent['valet_id'],
+                    "customer_phone": phone_number,
+                    "amount": tip_amount,
+                    "status": "created",
+                    "short_url": result["short_url"],
+                    "tip_token": intent['token'],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                reply_text = f"Tap to pay Rs.{tip_amount} tip for {intent['valet_name']}:\n{result['short_url']}\n\nThank you!"
+    elif message_lower in ['retr', 'retrieve', 'get car', 'ready']:
         vehicle = await db.vehicles.find_one(
             {"phone_number": phone_number, "status": {"$ne": "checked_out"}},
             {"_id": 0},

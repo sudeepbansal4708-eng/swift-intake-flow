@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 
-from config import db, WA_TEMPLATE_TIP
+from config import db, WA_TEMPLATE_TIP, WA_TEMPLATE_CHECKOUT_TIP
 from models import Ticket, ValetCreate, PushSubscription
 from utils import (
     get_current_user, send_whatsapp_message, send_push_notification,
@@ -71,7 +71,7 @@ async def admin_checkout_vehicle(request: Request, vehicle_id: str, current_user
     client_name_msg = current_user.get('client_name', 'Valet Guys')
     valet_name_msg = current_user.get('name', 'your valet')
 
-    # Create a tip intent with a short token; customer picks amount via 3 links in WhatsApp.
+    # Create tip intent so button taps can be resolved
     import secrets
     from config import get_app_base_url
     token = secrets.token_urlsafe(6).replace('-', 'a').replace('_', 'b')[:8]
@@ -85,20 +85,27 @@ async def admin_checkout_vehicle(request: Request, vehicle_id: str, current_user
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    base = (await get_app_base_url()).rstrip("/")
-    link_25 = f"{base}/api/payments/quick-tip/{token}/25"
-    link_50 = f"{base}/api/payments/quick-tip/{token}/50"
-    link_100 = f"{base}/api/payments/quick-tip/{token}/100"
-
-    message = (
-        f"Thank you for parking with the Valet Guys at {client_name_msg}! "
-        f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"
-        f"Rs.25  →  {link_25}\n"
-        f"Rs.50  →  {link_50}\n"
-        f"Rs.100  →  {link_100}\n\n"
-        f"Drive Safe!"
-    )
-    await send_whatsapp_message(vehicle['phone_number'], message)
+    if WA_TEMPLATE_CHECKOUT_TIP:
+        await send_whatsapp_message(
+            vehicle['phone_number'],
+            f"Thank you for parking with the Valet Guys at {client_name_msg}! Tip your valet {valet_name_msg}.",
+            content_sid=WA_TEMPLATE_CHECKOUT_TIP,
+            content_variables={"1": client_name_msg, "2": valet_name_msg},
+        )
+    else:
+        base = (await get_app_base_url()).rstrip("/")
+        link_25 = f"{base}/api/payments/quick-tip/{token}/25"
+        link_50 = f"{base}/api/payments/quick-tip/{token}/50"
+        link_100 = f"{base}/api/payments/quick-tip/{token}/100"
+        message = (
+            f"Thank you for parking with the Valet Guys at {client_name_msg}! "
+            f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"
+            f"Rs.25  →  {link_25}\n"
+            f"Rs.50  →  {link_50}\n"
+            f"Rs.100  →  {link_100}\n\n"
+            f"Drive Safe!"
+        )
+        await send_whatsapp_message(vehicle['phone_number'], message)
 
     return {"message": "Vehicle checked out successfully", "vehicle_id": vehicle_id}
 
