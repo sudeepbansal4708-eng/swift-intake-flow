@@ -293,6 +293,7 @@ async def send_fee_payment_request(phone: str, client_name: str, fee: float, veh
         await db.payments.insert_one({
             "link_id": result["link_id"],
             "session_id": result.get("session_id", ""),
+            "cf_order_id": result.get("cf_order_id", ""),
             "type": "valet_fee",
             "vehicle_id": vehicle_id,
             "customer_phone": phone,

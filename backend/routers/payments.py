@@ -1,10 +1,10 @@
-"""Payment routes: Cashfree Orders API for valet fees and tips."""
+"""Payment routes: Cashfree Orders API + JS SDK redirect for valet fees and tips."""
 import logging
 import uuid
 import httpx
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 
 from config import (
     db, CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET,
@@ -15,7 +15,8 @@ from utils import get_current_user, send_whatsapp_message
 router = APIRouter(prefix="/payments", tags=["payments"])
 logger = logging.getLogger(__name__)
 
-CASHFREE_CHECKOUT_URL = "https://payments.cashfree.com/order/#"
+# Cashfree JS SDK mode: 'production' for live, 'sandbox' for test
+CASHFREE_JS_MODE = "production" if "sandbox" not in CASHFREE_BASE_URL else "sandbox"
 
 
 def get_base_url(request: Request) -> str:
@@ -42,18 +43,19 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
 
         payload = {
             "order_id": order_id,
-            "order_amount": amount_inr,
+            "order_amount": float(amount_inr),
             "order_currency": "INR",
             "order_note": description,
             "customer_details": {
                 "customer_id": customer_id,
                 "customer_phone": customer_phone.replace("+", "")[-10:],
-                "customer_name": customer_name,
+                "customer_name": customer_name or "Customer",
             },
             "order_meta": {
                 "return_url": f"{public_base}/payment/success?order_id={order_id}",
+                "notify_url": f"{public_base}/api/payments/webhook",
             },
-            "order_tags": notes or {},
+            "order_tags": {str(k): str(v) for k, v in (notes or {}).items()},
         }
 
         headers = {
@@ -72,14 +74,14 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
             )
 
         if resp.status_code >= 400:
-            logger.error(f"Cashfree error {resp.status_code}: {resp.text}")
+            logger.error(f"Cashfree order error {resp.status_code}: {resp.text}")
             return None
 
         data = resp.json()
         session_id = data.get("payment_session_id", "")
         short_url = f"{public_base}/api/payments/pay/{order_id}"
 
-        logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, url={short_url}")
+        logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, short={short_url}")
 
         return {
             "link_id": order_id,
@@ -125,8 +127,8 @@ async def create_fee_payment_link(vehicle_id: str, current_user: dict = Depends(
 
     await db.payments.insert_one({
         "link_id": result["link_id"],
-        "cf_order_id": result.get("cf_order_id", ""),
         "session_id": result.get("session_id", ""),
+        "cf_order_id": result.get("cf_order_id", ""),
         "type": "valet_fee",
         "vehicle_id": vehicle_id,
         "customer_phone": vehicle.get("phone_number"),
@@ -170,8 +172,8 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
 
     await db.payments.insert_one({
         "link_id": result["link_id"],
-        "cf_order_id": result.get("cf_order_id", ""),
         "session_id": result.get("session_id", ""),
+        "cf_order_id": result.get("cf_order_id", ""),
         "type": "tip",
         "vehicle_id": vehicle_id,
         "valet_id": valet_id,
@@ -187,7 +189,7 @@ async def create_tip_payment_link(vehicle_id: str, valet_id: str, amount: float 
 
 @router.post("/webhook")
 async def cashfree_webhook(request: Request):
-    """Handle Cashfree payment webhooks."""
+    """Handle Cashfree Orders API payment webhooks."""
     body = await request.body()
 
     import json
@@ -231,7 +233,7 @@ async def cashfree_webhook(request: Request):
                             {"id": ticket["id"]},
                             {"$set": {"status": "open", "fee_paid": True, "fee_paid_at": datetime.now(timezone.utc).isoformat()}}
                         )
-                        logger.info(f"Valet fee paid for vehicle {vehicle_id}, ticket moved to open")
+                        logger.info(f"Valet fee paid for vehicle {vehicle_id}")
 
             elif payment_type == "tip":
                 valet_id = payment.get("valet_id", "") if payment else order_tags.get("valet_id", "")
@@ -269,17 +271,17 @@ async def get_payment_status(order_id: str, current_user: dict = Depends(get_cur
     }
 
 
-@router.get("/pay/{order_id}")
+@router.get("/pay/{order_id}", response_class=HTMLResponse)
 async def redirect_to_payment(order_id: str):
-    """Short URL redirect to Cashfree checkout page. No auth required.
-    If session_id is missing from DB record, fetch it from Cashfree on-the-fly."""
+    """Serve an HTML page that loads Cashfree's JS SDK and launches checkout
+    using the order's payment_session_id. No auth required.
+    Self-heals if session_id is missing by fetching it from Cashfree."""
     payment = await db.payments.find_one({"link_id": order_id}, {"_id": 0})
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found or expired")
 
     session_id = payment.get("session_id", "")
 
-    # Self-heal: if session missing (e.g., legacy record), fetch from Cashfree
     if not session_id and CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET:
         headers = {
             "x-api-version": CASHFREE_API_VERSION,
@@ -303,5 +305,82 @@ async def redirect_to_payment(order_id: str):
     if not session_id:
         raise HTTPException(status_code=404, detail="Payment not found or expired")
 
-    checkout_url = f"{CASHFREE_CHECKOUT_URL}{session_id}"
-    return RedirectResponse(url=checkout_url, status_code=302)
+    amount = payment.get("amount", 0)
+    ptype = "Tip" if payment.get("type") == "tip" else "Valet Fee"
+
+    import json as _json
+    session_id_js = _json.dumps(session_id)
+    mode_js = _json.dumps(CASHFREE_JS_MODE)
+
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pay __PTYPE__ - Valet Guys</title>
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { background: #0b0f17; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: #141a26; border: 1px solid #1f2937; border-radius: 20px; padding: 32px 24px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 12px 48px rgba(0,0,0,0.4); }
+  .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; color: #fbbf24; }
+  .tag { font-size: 12px; opacity: 0.6; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 28px; }
+  .label { font-size: 13px; opacity: 0.6; margin-bottom: 6px; }
+  .amount { font-size: 44px; font-weight: 700; margin-bottom: 4px; letter-spacing: -1px; }
+  .type { font-size: 14px; opacity: 0.7; margin-bottom: 28px; }
+  .btn { background: #fbbf24; color: #0b0f17; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .secure { font-size: 11px; opacity: 0.4; margin-top: 16px; }
+  .spinner { display: none; width: 20px; height: 20px; border: 3px solid rgba(11,15,23,0.3); border-top-color: #0b0f17; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn.loading .spinner { display: inline-block; }
+  .btn.loading .text { display: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">VALET GUYS</div>
+    <div class="tag">Secure Payment</div>
+    <div class="label">Amount</div>
+    <div class="amount">Rs. __AMOUNT__</div>
+    <div class="type">__PTYPE__ Payment</div>
+    <button id="payBtn" class="btn" onclick="startCheckout()">
+      <span class="text">Pay Now</span>
+      <span class="spinner"></span>
+    </button>
+    <div class="secure">Powered by Cashfree</div>
+  </div>
+<script>
+  const sessionId = __SESSION_ID__;
+  const cashfree = Cashfree({ mode: __MODE__ });
+
+  function startCheckout() {
+    const btn = document.getElementById("payBtn");
+    btn.classList.add("loading");
+    btn.disabled = true;
+    cashfree.checkout({
+      paymentSessionId: sessionId,
+      redirectTarget: "_self"
+    }).then(() => {
+      btn.classList.remove("loading");
+      btn.disabled = false;
+    }).catch((err) => {
+      console.error(err);
+      btn.classList.remove("loading");
+      btn.disabled = false;
+      alert("Payment could not be started: " + (err.message || "unknown error"));
+    });
+  }
+
+  // Auto-launch checkout immediately
+  window.addEventListener("load", () => { setTimeout(startCheckout, 250); });
+</script>
+</body>
+</html>"""
+    html = (html
+        .replace("__PTYPE__", ptype)
+        .replace("__AMOUNT__", f"{amount:.0f}")
+        .replace("__SESSION_ID__", session_id_js)
+        .replace("__MODE__", mode_js))
+    return HTMLResponse(content=html, status_code=200)
