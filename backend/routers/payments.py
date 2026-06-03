@@ -13,6 +13,7 @@ from config import (
 from utils import get_current_user, send_whatsapp_message
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+short_router = APIRouter(tags=["payments-short"])
 logger = logging.getLogger(__name__)
 
 # Cashfree JS SDK mode: 'production' for live, 'sandbox' for test
@@ -79,7 +80,7 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
 
         data = resp.json()
         session_id = data.get("payment_session_id", "")
-        short_url = f"{public_base}/api/payments/pay/{order_id}"
+        short_url = f"{public_base}/api/p/{order_id}"
 
         logger.info(f"Cashfree order created: {order_id} for Rs.{amount_inr}, short={short_url}")
 
@@ -433,3 +434,18 @@ async def redirect_to_payment(order_id: str):
         .replace("__SESSION_ID__", session_id_js)
         .replace("__MODE__", mode_js))
     return HTMLResponse(content=html, status_code=200)
+
+
+
+# ─── Short-path aliases (so WhatsApp links stay compact) ───
+
+@short_router.get("/p/{order_id}", response_class=HTMLResponse)
+async def short_redirect_to_payment(order_id: str):
+    """Alias for /api/payments/pay/{order_id}."""
+    return await redirect_to_payment(order_id)
+
+
+@short_router.get("/qt/{token}/{amount}", response_class=HTMLResponse)
+async def short_quick_tip(token: str, amount: int):
+    """Alias for /api/payments/quick-tip/{token}/{amount}."""
+    return await quick_tip_redirect(token, amount)

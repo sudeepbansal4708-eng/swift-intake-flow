@@ -94,9 +94,9 @@ async def admin_checkout_vehicle(request: Request, vehicle_id: str, current_user
         )
     else:
         base = (await get_app_base_url()).rstrip("/")
-        link_25 = f"{base}/api/payments/quick-tip/{token}/25"
-        link_50 = f"{base}/api/payments/quick-tip/{token}/50"
-        link_100 = f"{base}/api/payments/quick-tip/{token}/100"
+        link_25 = f"{base}/api/qt/{token}/25"
+        link_50 = f"{base}/api/qt/{token}/50"
+        link_100 = f"{base}/api/qt/{token}/100"
         message = (
             f"Thank you for parking with the Valet Guys at {client_name_msg}! "
             f"We hope you had a great experience. Tip your valet {valet_name_msg}:\n\n"

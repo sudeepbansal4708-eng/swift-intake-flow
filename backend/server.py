@@ -24,6 +24,7 @@ api_router.include_router(admin.router)
 api_router.include_router(super_admin.router)
 api_router.include_router(public.router)
 api_router.include_router(payments.router)
+api_router.include_router(payments.short_router)
 app.include_router(api_router)
 
 # CORS
