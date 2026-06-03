@@ -14,8 +14,9 @@ _frontend_env = ROOT_DIR.parent / 'frontend' / '.env'
 if _frontend_env.exists():
     load_dotenv(_frontend_env, override=False)
 
-# App Base URL — prefer REACT_APP_BACKEND_URL (auto-set by Emergent in production)
-APP_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', os.environ.get('BACKEND_URL', ''))
+# App Base URL — prefer explicit BACKEND_URL from backend/.env (custom domain),
+# fall back to REACT_APP_BACKEND_URL (auto-set by Emergent to deploy hostname)
+APP_BASE_URL = os.environ.get('BACKEND_URL') or os.environ.get('REACT_APP_BACKEND_URL', '')
 
 # MongoDB
 mongo_url = os.environ['MONGO_URL']
