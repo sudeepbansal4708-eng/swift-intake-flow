@@ -16,20 +16,38 @@ if _frontend_env.exists():
 
 # App Base URL — sourced primarily from DB settings (Super Admin controlled).
 # Falls back to env vars only if DB has no value (used at the very first startup).
-_FALLBACK_BASE_URL = (
-    os.environ.get('BACKEND_URL')
-    or os.environ.get('REACT_APP_BACKEND_URL')
-    or 'https://thevaletguys.in'
-).rstrip('/')
+# We skip Emergent's internal hostnames since they're not customer-facing.
+_INTERNAL_HOST_PATTERNS = (
+    'emergent.host',
+    'preview.emergentagent.com',
+    'emergentcf.cloud',
+    'localhost',
+    '127.0.0.1',
+)
+
+
+def _is_internal_host(url: str) -> bool:
+    return any(p in (url or '') for p in _INTERNAL_HOST_PATTERNS)
+
+
+def _detect_fallback_base_url() -> str:
+    for candidate in (os.environ.get('BACKEND_URL'), os.environ.get('REACT_APP_BACKEND_URL')):
+        if candidate and not _is_internal_host(candidate):
+            return candidate.rstrip('/')
+    return 'https://thevaletguys.in'
+
+
+_FALLBACK_BASE_URL = _detect_fallback_base_url()
 
 
 async def get_app_base_url() -> str:
     """Return canonical app base URL stored in DB (settings collection).
-    On first call, seed it from env or the hardcoded production domain."""
+    Self-heals if DB value points to an Emergent internal host."""
     doc = await db.settings.find_one({"_id": "app"})
-    if doc and doc.get("base_url"):
-        return doc["base_url"].rstrip("/")
-    # Seed default
+    stored = (doc or {}).get("base_url", "").rstrip("/")
+    if stored and not _is_internal_host(stored):
+        return stored
+    # Empty or internal host → re-seed with fallback
     await db.settings.update_one(
         {"_id": "app"},
         {"$set": {"base_url": _FALLBACK_BASE_URL}},
