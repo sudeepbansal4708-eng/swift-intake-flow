@@ -346,6 +346,8 @@ async def update_ticket_status(request: Request, ticket_id: str, status: str, cu
         if tip_result:
             await db.payments.insert_one({
                 "link_id": tip_result["link_id"],
+                "session_id": tip_result.get("session_id", ""),
+                "cf_order_id": tip_result.get("cf_order_id", ""),
                 "type": "tip",
                 "vehicle_id": ticket['vehicle_id'],
                 "valet_id": claimed_by,

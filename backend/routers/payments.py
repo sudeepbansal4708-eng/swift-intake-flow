@@ -271,10 +271,37 @@ async def get_payment_status(order_id: str, current_user: dict = Depends(get_cur
 
 @router.get("/pay/{order_id}")
 async def redirect_to_payment(order_id: str):
-    """Short URL redirect to Cashfree checkout page. No auth required."""
-    payment = await db.payments.find_one({"link_id": order_id}, {"_id": 0, "session_id": 1})
-    if not payment or not payment.get("session_id"):
+    """Short URL redirect to Cashfree checkout page. No auth required.
+    If session_id is missing from DB record, fetch it from Cashfree on-the-fly."""
+    payment = await db.payments.find_one({"link_id": order_id}, {"_id": 0})
+    if not payment:
         raise HTTPException(status_code=404, detail="Payment not found or expired")
 
-    checkout_url = f"{CASHFREE_CHECKOUT_URL}{payment['session_id']}"
+    session_id = payment.get("session_id", "")
+
+    # Self-heal: if session missing (e.g., legacy record), fetch from Cashfree
+    if not session_id and CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET:
+        headers = {
+            "x-api-version": CASHFREE_API_VERSION,
+            "x-client-id": CASHFREE_CLIENT_ID,
+            "x-client-secret": CASHFREE_CLIENT_SECRET,
+        }
+        try:
+            async with httpx.AsyncClient() as cf:
+                resp = await cf.get(f"{CASHFREE_BASE_URL}/orders/{order_id}", headers=headers, timeout=10.0)
+            if resp.status_code < 400:
+                data = resp.json()
+                session_id = data.get("payment_session_id", "")
+                if session_id:
+                    await db.payments.update_one(
+                        {"link_id": order_id},
+                        {"$set": {"session_id": session_id}}
+                    )
+        except Exception as e:
+            logger.error(f"Failed to refetch Cashfree session for {order_id}: {e}")
+
+    if not session_id:
+        raise HTTPException(status_code=404, detail="Payment not found or expired")
+
+    checkout_url = f"{CASHFREE_CHECKOUT_URL}{session_id}"
     return RedirectResponse(url=checkout_url, status_code=302)
