@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 
-from config import db
+from config import db, get_app_base_url, set_app_base_url
 from models import User, AdminCreate
 from utils import get_current_user
 
@@ -206,3 +206,24 @@ async def wipe_data(confirm: str, current_user: dict = Depends(get_current_user)
 
     logger.warning(f"DB WIPED by {current_user['email']}: {result}")
     return {"message": "Database wiped. Only super admin accounts remain.", "deleted": result}
+
+
+
+@router.get("/settings/base-url")
+async def get_base_url_setting(current_user: dict = Depends(get_current_user)):
+    """Get the current app base URL used for payment/retrieval links."""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    return {"base_url": await get_app_base_url()}
+
+
+@router.put("/settings/base-url")
+async def update_base_url_setting(base_url: str, current_user: dict = Depends(get_current_user)):
+    """Update the app base URL used for payment/retrieval links."""
+    if current_user['role'] != 'super_admin':
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    if not base_url.startswith("http://") and not base_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="base_url must start with http:// or https://")
+    new_url = await set_app_base_url(base_url)
+    logger.warning(f"App base URL updated by {current_user['email']} to: {new_url}")
+    return {"base_url": new_url, "message": "Updated. Future links will use this URL."}

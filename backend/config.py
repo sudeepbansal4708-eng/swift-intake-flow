@@ -14,9 +14,39 @@ _frontend_env = ROOT_DIR.parent / 'frontend' / '.env'
 if _frontend_env.exists():
     load_dotenv(_frontend_env, override=False)
 
-# App Base URL — prefer explicit BACKEND_URL from backend/.env (custom domain),
-# fall back to REACT_APP_BACKEND_URL (auto-set by Emergent to deploy hostname)
-APP_BASE_URL = os.environ.get('BACKEND_URL') or os.environ.get('REACT_APP_BACKEND_URL', '')
+# App Base URL — sourced primarily from DB settings (Super Admin controlled).
+# Falls back to env vars only if DB has no value (used at the very first startup).
+_FALLBACK_BASE_URL = (
+    os.environ.get('BACKEND_URL')
+    or os.environ.get('REACT_APP_BACKEND_URL')
+    or 'https://thevaletguys.in'
+).rstrip('/')
+
+
+async def get_app_base_url() -> str:
+    """Return canonical app base URL stored in DB (settings collection).
+    On first call, seed it from env or the hardcoded production domain."""
+    doc = await db.settings.find_one({"_id": "app"})
+    if doc and doc.get("base_url"):
+        return doc["base_url"].rstrip("/")
+    # Seed default
+    await db.settings.update_one(
+        {"_id": "app"},
+        {"$set": {"base_url": _FALLBACK_BASE_URL}},
+        upsert=True,
+    )
+    return _FALLBACK_BASE_URL
+
+
+async def set_app_base_url(new_url: str) -> str:
+    """Update the canonical app base URL in DB."""
+    cleaned = new_url.strip().rstrip("/")
+    await db.settings.update_one(
+        {"_id": "app"},
+        {"$set": {"base_url": cleaned}},
+        upsert=True,
+    )
+    return cleaned
 
 # MongoDB
 mongo_url = os.environ['MONGO_URL']

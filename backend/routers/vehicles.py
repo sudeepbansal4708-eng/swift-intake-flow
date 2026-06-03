@@ -30,8 +30,8 @@ async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depen
     client_name = valet.get('client_name', 'Valet Guys') if valet else 'Valet Guys'
     valet_name = current_user.get('name', 'our valet driver')
 
-    from config import APP_BASE_URL
-    retrieve_url = f"{APP_BASE_URL}/retrieve/{vehicle_obj.id}"
+    from config import get_app_base_url
+    retrieve_url = f"{await get_app_base_url()}/retrieve/{vehicle_obj.id}"
 
     # Build Google Maps link from GPS if available, otherwise use retrieve URL
     gps_lat = vehicle_obj.gps_latitude

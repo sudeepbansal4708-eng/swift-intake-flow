@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 
 from config import (
     db, CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET,
-    CASHFREE_BASE_URL, CASHFREE_API_VERSION, APP_BASE_URL,
+    CASHFREE_BASE_URL, CASHFREE_API_VERSION, get_app_base_url, set_app_base_url,
 )
 from utils import get_current_user, send_whatsapp_message
 
@@ -19,9 +19,7 @@ CASHFREE_CHECKOUT_URL = "https://payments.cashfree.com/order/#"
 
 
 def get_base_url(request: Request) -> str:
-    """Return the canonical app base URL (from frontend .env via config)."""
-    if APP_BASE_URL:
-        return APP_BASE_URL.rstrip("/")
+    """Deprecated synchronous helper. Use get_app_base_url() (async)."""
     forwarded_proto = request.headers.get("x-forwarded-proto", "https")
     forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
     return f"{forwarded_proto}://{forwarded_host}"
@@ -33,7 +31,7 @@ async def create_payment_link(amount_inr: float, description: str, customer_phon
         logger.warning("Cashfree not configured")
         return None
 
-    public_base = (base_url or APP_BASE_URL or "").rstrip("/")
+    public_base = (base_url or await get_app_base_url()).rstrip("/")
     if not public_base:
         logger.error("No APP_BASE_URL configured; cannot generate payment short URL")
         return None
