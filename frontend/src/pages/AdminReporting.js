@@ -194,8 +194,8 @@ export default function AdminReporting() {
           </div>
           <RetrievalIndicator mins={s.avg_retrieval_mins} status={s.retrieval_status} />
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <StatCard icon={IndianRupee} label="Total Tips" value="--" iconColor="text-amber-500" sub="Coming Soon" testId="stat-total-tips" />
-            <StatCard icon={TrendingUp} label="Collection Rate" value="--" iconColor="text-cyan-500" sub="Coming Soon" testId="stat-collection-rate" />
+            <StatCard icon={IndianRupee} label="Total Tips" value={`₹${Math.round(s.total_tips || 0)}`} iconColor="text-amber-500" testId="stat-total-tips" />
+            <StatCard icon={TrendingUp} label="Collection Rate" value={`${s.collection_rate ?? 0}%`} iconColor="text-cyan-500" testId="stat-collection-rate" />
           </div>
         </div>
 
@@ -313,13 +313,50 @@ export default function AdminReporting() {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-400" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
               Financial Reconciliation
             </h2>
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold ml-auto">COMING SOON</span>
+            <Button
+              data-testid="export-csv-btn"
+              onClick={handleExportCSV}
+              variant="ghost"
+              className="h-8 px-3 rounded-full text-[10px] uppercase tracking-wider text-emerald-400 hover:bg-emerald-900/20 border border-emerald-800/50 ml-auto"
+            >
+              <Download className="w-3 h-3 mr-1" /> CSV
+            </Button>
           </div>
-          <Card data-testid="financial-card" className="bg-zinc-900/50 border border-zinc-800 p-4 space-y-4 opacity-60">
-            <div className="text-center py-4">
-              <IndianRupee className="w-8 h-8 text-amber-600/40 mx-auto mb-2" />
-              <div className="text-sm text-zinc-400">Tips & payment reconciliation will be available after the pilot phase</div>
+          <Card data-testid="financial-card" className="bg-zinc-900/50 border border-zinc-800 p-4 space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Paid</div>
+                <div className="text-lg font-bold text-emerald-400">₹{Math.round(fin.paid_tips_total || 0)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Pending</div>
+                <div className="text-lg font-bold text-amber-400">{fin.pending_tips_count || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Platform Fee</div>
+                <div className="text-lg font-bold text-zinc-300">₹{Math.round(fin.platform_fees || 0)}</div>
+              </div>
             </div>
+            {(fin.payout || []).length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-zinc-800 hover:bg-transparent">
+                    <TableHead className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Valet</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold text-right">Earned</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold text-right">Payout</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fin.payout.map((p, i) => (
+                    <TableRow key={i} data-testid={`payout-row-${i}`} className="border-zinc-800 hover:bg-zinc-900">
+                      <TableCell className="text-sm text-white py-2">{p.valet_name}</TableCell>
+                      <TableCell className="text-sm text-amber-400 py-2 text-right">₹{Math.round(p.tips_earned || 0)}</TableCell>
+                      <TableCell className="text-sm text-emerald-400 py-2 text-right">₹{Math.round(p.payout_amount || 0)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </Card>
         </div>
       </div>

@@ -149,11 +149,10 @@ export default function SuperAdminPanel() {
               <div className="text-3xl font-bold text-white">{analytics.cars_parked_now}</div>
               <div className="text-xs text-blue-400 uppercase tracking-wider">Cars Parked Now</div>
             </Card>
-            <Card className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4 relative opacity-60">
+            <Card data-testid="super-tips-today-card" className="bg-gradient-to-br from-emerald-950/30 to-zinc-900/50 backdrop-blur-md border border-emerald-800/50 p-4">
               <DollarSign className="w-6 h-6 text-emerald-400 mb-2" />
-              <div className="text-3xl font-bold text-white">--</div>
+              <div className="text-3xl font-bold text-white">₹{Math.round(analytics.total_tips_today || 0)}</div>
               <div className="text-xs text-emerald-400 uppercase tracking-wider">Tips Today</div>
-              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
             <Card className="bg-gradient-to-br from-purple-950/30 to-zinc-900/50 backdrop-blur-md border border-purple-800/50 p-4">
               <TrendingUp className="w-6 h-6 text-purple-400 mb-2" />

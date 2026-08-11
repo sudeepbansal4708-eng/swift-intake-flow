@@ -374,12 +374,11 @@ export default function Dashboard() {
             </Card>
             <Card
               data-testid="card-tips"
-              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 relative opacity-60"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
             >
               <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
-              <div className="text-2xl font-bold text-white">--</div>
+              <div className="text-2xl font-bold text-white">₹{Math.round(dashStats?.totals?.tips_amount || 0)}</div>
               <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
-              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
           </div>
         )}
@@ -435,12 +434,11 @@ export default function Dashboard() {
             </Card>
             <Card
               data-testid="valet-card-tips"
-              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4 relative opacity-60"
+              className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-4"
             >
               <DollarSign className="w-6 h-6 text-amber-500 mb-2" />
-              <div className="text-2xl font-bold text-white">--</div>
+              <div className="text-2xl font-bold text-white">₹{Math.round(valetStats?.tips_today || 0)}</div>
               <div className="text-xs text-zinc-400 uppercase tracking-wider">Tips Today</div>
-              <span className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
             </Card>
           </div>
         )}
@@ -791,12 +789,36 @@ export default function Dashboard() {
               )}
 
               {activeModal === 'tips' && (
-                <div className="text-center py-8">
-                  <DollarSign className="w-8 h-8 text-amber-600/40 mx-auto mb-2" />
-                  <div className="text-sm text-zinc-400 font-medium">Tips & Payments</div>
-                  <span className="inline-block mt-2 text-[10px] px-2.5 py-1 rounded-full bg-amber-900/30 text-amber-400 border border-amber-800/50 font-semibold">COMING SOON</span>
-                  <div className="text-[10px] text-zinc-600 mt-2">Payment integration will be available after the pilot phase</div>
-                </div>
+                dashStats?.tips?.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800">
+                      <div className="text-xs text-zinc-500 uppercase tracking-wider">Today&apos;s Tips</div>
+                      <div className="text-lg font-bold text-amber-400">₹{Math.round(dashStats.totals.tips_amount || 0)}</div>
+                    </div>
+                    {dashStats.tips.slice().reverse().map((t, idx) => (
+                      <Card
+                        key={idx}
+                        data-testid={`tip-row-${idx}`}
+                        className="bg-zinc-900/50 border border-zinc-800 p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-white">{t.valet_name}</div>
+                          <div className="text-[10px] text-zinc-500">{t.created_at ? new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full uppercase font-semibold ${t.status === 'paid' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/50' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'}`}>{t.status}</span>
+                          <span className="text-base font-bold text-amber-400">₹{Math.round(t.amount || 0)}</span>
+                        </div>
+                      </Card>
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <DollarSign className="w-8 h-8 text-amber-600/40 mx-auto mb-2" />
+                    <div className="text-sm text-zinc-400 font-medium">No tips yet today</div>
+                    <div className="text-[10px] text-zinc-600 mt-2">Tips will appear here as customers pay via WhatsApp</div>
+                  </div>
+                )
               )}
             </div>
           </Card>
