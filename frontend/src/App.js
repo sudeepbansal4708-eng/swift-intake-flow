@@ -10,6 +10,7 @@ import AdminPanel from "./pages/AdminPanel";
 import SuperAdminPanel from "./pages/SuperAdminPanel";
 import AdminReporting from "./pages/AdminReporting";
 import CustomerRetrieve from "./pages/CustomerRetrieve";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import { Toaster } from "./components/ui/sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -71,6 +72,7 @@ function App() {
           <Route path="/admin/reporting" element={<PrivateRoute><AdminReporting /></PrivateRoute>} />
           <Route path="/super-admin" element={<PrivateRoute><SuperAdminPanel /></PrivateRoute>} />
           <Route path="/retrieve/:vehicleId" element={<CustomerRetrieve />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
         </Routes>
       </BrowserRouter>
       <Toaster richColors position="top-center" />
