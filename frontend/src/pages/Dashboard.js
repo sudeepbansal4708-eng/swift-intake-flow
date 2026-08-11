@@ -179,7 +179,7 @@ export default function Dashboard() {
 
   const openRetrieveModal = () => {
     setShowRetrieveModal(true);
-    setRetrievePhone('');
+    setRetrievePhone('+91');
     setLookupResult(null);
   };
 
